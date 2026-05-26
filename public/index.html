@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lead Agent AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #07090F;
+      --bg2:         #0D1117;
+      --bg3:         #161B24;
+      --card:        rgba(22, 27, 36, 0.85);
+      --border:      rgba(255,255,255,0.07);
+      --border2:     rgba(255,255,255,0.13);
+      --blue:        #4F8EF7;
+      --blue-dark:   #2F6FE8;
+      --blue-glow:   rgba(79,142,247,0.18);
+      --green:       #34D399;
+      --green-glow:  rgba(52,211,153,0.18);
+      --purple:      #A78BFA;
+      --orange:      #FBBF24;
+      --red:         #F87171;
+      --text:        #E8EEF6;
+      --text2:       #8892A0;
+      --text3:       #3D4550;
+      --radius:      12px;
+      --font:        'Inter', system-ui, sans-serif;
+      --shadow:      0 0 0 1px rgba(255,255,255,0.05), 0 12px 40px rgba(0,0,0,0.5);
+    }
+
+    html, body { height: 100%; font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+
+    /* Subtle grid + glow background */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse 90% 55% at 50% -10%, rgba(79,142,247,0.09), transparent 60%),
+        repeating-linear-gradient(0deg, transparent, transparent 47px, rgba(255,255,255,0.018) 48px),
+        repeating-linear-gradient(90deg, transparent, transparent 47px, rgba(255,255,255,0.018) 48px);
+    }
+
+    /* ────── Layout ────── */
+    .app {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      max-width: 1320px; margin: 0 auto;
+      padding: 28px 24px 40px;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+
+    /* ────── Header ────── */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    .brand { display: flex; align-items: center; gap: 14px; }
+
+    .brand-icon {
+      width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--blue-dark), var(--purple));
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 24px rgba(79,142,247,0.35);
+      font-size: 22px;
+    }
+
+    .brand-text h1 {
+      font-size: 19px; font-weight: 800; letter-spacing: -0.4px;
+      background: linear-gradient(120deg, #E8EEF6 30%, #8892A0);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .brand-text p { font-size: 12px; color: var(--text2); margin-top: 1px; }
+
+    .status-pill {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 16px;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 100px; font-size: 12px; font-weight: 500; color: var(--text2);
+      transition: all 0.3s;
+    }
+
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--text3); flex-shrink: 0;
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+    .dot.running { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 1.4s ease-in-out infinite; }
+    .dot.done    { background: var(--blue);  box-shadow: 0 0 8px var(--blue); }
+    .dot.error   { background: var(--red);   box-shadow: 0 0 8px var(--red); }
+
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.75)} }
+    @keyframes spin  { to{transform:rotate(360deg)} }
+    @keyframes slideIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeUp  { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+
+    /* ────── Config Card ────── */
+    .config-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow);
+    }
+
+    .card-label {
+      font-size: 11px; font-weight: 700; color: var(--text2);
+      text-transform: uppercase; letter-spacing: .8px; margin-bottom: 18px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 130px auto;
+      gap: 12px; align-items: end;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field > label { font-size: 12px; font-weight: 500; color: var(--text2); padding-left: 2px; }
+
+    .inp-wrap { position: relative; }
+    .inp-wrap .ico {
+      position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+      color: var(--text3); pointer-events: none; display: flex;
+    }
+    .inp-wrap .ico svg { width: 15px; height: 15px; }
+
+    .inp-wrap input {
+      width: 100%; padding: 10px 12px 10px 34px;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border2);
+      border-radius: 8px; color: var(--text); font-family: var(--font); font-size: 14px;
+      outline: none; transition: border-color .2s, box-shadow .2s;
+    }
+    .inp-wrap input::placeholder { color: var(--text3); }
+    .inp-wrap input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-glow); }
+    .inp-wrap input:disabled { opacity: .4; cursor: not-allowed; }
+
+    .btn-start {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      height: 42px; padding: 0 26px;
+      background: linear-gradient(135deg, var(--blue-dark) 0%, #7C3AED 100%);
+      border: none; border-radius: 8px;
+      color: #fff; font-family: var(--font); font-size: 14px; font-weight: 600;
+      cursor: pointer; white-space: nowrap;
+      box-shadow: 0 4px 16px rgba(79,142,247,0.3);
+      transition: opacity .2s, transform .1s, box-shadow .2s;
+    }
+    .btn-start:hover:not(:disabled) { opacity: .9; box-shadow: 0 6px 22px rgba(79,142,247,0.45); }
+    .btn-start:active:not(:disabled) { transform: scale(.97); }
+    .btn-start:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
+    .btn-start svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+    /* ────── Main Grid ────── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    /* ────── Panel ────── */
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow);
+      display: flex; flex-direction: column;
+      height: 460px; overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 15px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+
+    .panel-title {
+      display: flex; align-items: center; gap: 9px;
+      font-size: 13px; font-weight: 600;
+    }
+    .panel-title svg { width: 15px; height: 15px; color: var(--blue); flex-shrink: 0; }
+
+    .badge {
+      font-size: 11px; font-weight: 700;
+      padding: 2px 10px; border-radius: 100px;
+      background: var(--blue-glow); color: var(--blue);
+      border: 1px solid rgba(79,142,247,0.22);
+      min-width: 28px; text-align: center;
+    }
+
+    .panel-body { flex: 1; overflow-y: auto; }
+    .panel-body::-webkit-scrollbar { width: 3px; }
+    .panel-body::-webkit-scrollbar-track { background: transparent; }
+    .panel-body::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+
+    /* ────── Empty State ────── */
+    .empty {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 14px; padding: 40px;
+    }
+    .empty-icon {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .empty-icon svg { width: 24px; height: 24px; color: var(--text3); }
+    .empty p { font-size: 13px; color: var(--text2); text-align: center; line-height: 1.7; }
+
+    /* ────── Log Feed ────── */
+    .log-wrap { padding: 6px 0; }
+
+    .log-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 18px; cursor: default;
+      animation: slideIn .18s ease-out;
+      transition: background .12s;
+    }
+    .log-item:hover { background: rgba(255,255,255,0.025); }
+
+    .log-icon {
+      width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 12px; margin-top: 1px;
+    }
+    .log-icon.info   { background: rgba(136,146,160,.14); }
+    .log-icon.search { background: rgba(79,142,247,.14); }
+    .log-icon.whois  { background: rgba(167,139,250,.14); }
+    .log-icon.cnpj   { background: rgba(251,191,36,.12); }
+    .log-icon.lead   { background: rgba(52,211,153,.14); }
+    .log-icon.error  { background: rgba(248,113,113,.14); }
+
+    .log-body { flex: 1; min-width: 0; }
+    .log-text { font-size: 13px; color: var(--text); line-height: 1.45; word-break: break-word; }
+    .log-text strong { font-weight: 600; color: #fff; }
+    .log-time { font-size: 10.5px; color: var(--text3); margin-top: 2px; }
+
+    /* ────── Leads Table ────── */
+    .leads-tbl { width: 100%; border-collapse: collapse; }
+
+    .leads-tbl thead th {
+      position: sticky; top: 0; z-index: 1;
+      background: var(--bg3);
+      padding: 10px 16px; text-align: left;
+      font-size: 10.5px; font-weight: 700; color: var(--text2);
+      text-transform: uppercase; letter-spacing: .5px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .leads-tbl tbody tr { animation: slideIn .25s ease-out; }
+    .leads-tbl tbody tr:hover td { background: rgba(255,255,255,.025); }
+
+    .leads-tbl td {
+      padding: 10px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      font-size: 12.5px; color: var(--text);
+      max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .tbl-num { font-size: 11px; font-weight: 700; color: var(--text2); }
+
+    .type-tag {
+      display: inline-flex; align-items: center; padding: 2px 9px;
+      border-radius: 100px; font-size: 10px; font-weight: 700; letter-spacing: .4px;
+    }
+    .type-tag.cnpj { background: rgba(79,142,247,.12); color: var(--blue);   border: 1px solid rgba(79,142,247,.22); }
+    .type-tag.cpf  { background: rgba(167,139,250,.12); color: var(--purple); border: 1px solid rgba(167,139,250,.22); }
+
+    /* ────── Summary ────── */
+    .summary {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 28px;
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow);
+      display: none;
+      align-items: center; justify-content: space-between; gap: 24px;
+      flex-wrap: wrap;
+    }
+    .summary.show { display: flex; animation: fadeUp .4s ease-out; }
+
+    .stats { display: flex; gap: 32px; flex-wrap: wrap; }
+
+    .stat { text-align: center; }
+    .stat-val {
+      font-size: 26px; font-weight: 800; line-height: 1;
+      letter-spacing: -1px;
+    }
+    .stat-val.blue  { color: var(--blue); }
+    .stat-val.green { color: var(--green); }
+    .stat-lbl { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+    .divider { width: 1px; height: 40px; background: var(--border); align-self: center; }
+
+    .btn-dl {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 12px 28px; border: none; border-radius: 8px;
+      background: var(--green); color: #021a12;
+      font-family: var(--font); font-size: 14px; font-weight: 700;
+      cursor: pointer; white-space: nowrap;
+      box-shadow: 0 4px 16px rgba(52,211,153,.35);
+      transition: opacity .2s, transform .1s;
+    }
+    .btn-dl:hover { opacity: .9; }
+    .btn-dl:active { transform: scale(.97); }
+    .btn-dl svg { width: 17px; height: 17px; }
+
+    /* ────── Responsive ────── */
+    @media (max-width: 860px) {
+      .form-row { grid-template-columns: 1fr 1fr; }
+      .btn-start { grid-column: 1/-1; }
+      .main-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 520px) {
+      .form-row { grid-template-columns: 1fr; }
+      .brand-text p { display: none; }
+      .app { padding: 18px 14px 32px; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <div class="brand-text">
+        <h1>Lead Agent AI</h1>
+        <p>Geração inteligente de leads B2B no Brasil</p>
+      </div>
+    </div>
+    <div class="status-pill" id="pill">
+      <div class="dot" id="dot"></div>
+      <span id="pillText">Aguardando</span>
+    </div>
+  </header>
+
+  <!-- Config -->
+  <section class="config-card">
+    <div class="card-label">Configure sua busca</div>
+    <div class="form-row">
+      <div class="field">
+        <label>Nicho / Segmento</label>
+        <div class="inp-wrap">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+          <input id="nicho" type="text" placeholder="ex: clínica odontológica" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Região</label>
+        <div class="inp-wrap">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+          <input id="regiao" type="text" placeholder="ex: São Paulo SP" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Quantidade</label>
+        <div class="inp-wrap">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>
+          <input id="quantidade" type="number" min="1" max="50" value="5" />
+        </div>
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <button class="btn-start" id="btnStart" onclick="iniciar()">
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Iniciar Busca
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Grid -->
+  <div class="main-grid">
+
+    <!-- Activity Feed -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Atividade em Tempo Real
+        </div>
+      </div>
+      <div class="panel-body" id="logBody">
+        <div class="empty" id="logEmpty">
+          <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+          <p>Configure os parâmetros acima<br>e inicie a busca para ver a atividade.</p>
+        </div>
+        <div class="log-wrap" id="logWrap" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- Leads Panel -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Leads Capturados
+        </div>
+        <div class="badge" id="leadsCount">0</div>
+      </div>
+      <div class="panel-body" id="leadsBody">
+        <div class="empty" id="leadsEmpty">
+          <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg></div>
+          <p>Os leads serão exibidos aqui<br>conforme forem encontrados.</p>
+        </div>
+        <table class="leads-tbl" id="leadsTbl" style="display:none">
+          <thead>
+            <tr>
+              <th>#</th><th>Empresa</th><th>E-mail</th><th>Telefone</th><th>CPF/CNPJ</th><th>Tipo</th>
+            </tr>
+          </thead>
+          <tbody id="leadsRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary" id="summary">
+    <div class="stats" id="summaryStats"></div>
+    <div class="divider"></div>
+    <button class="btn-dl" id="btnDl" onclick="baixar()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Baixar Planilha Excel
+    </button>
+  </div>
+
+</div>
+
+<script>
+  let sessId = null, es = null;
+  let nLeads = 0, nEmail = 0, nTel = 0, nCNPJ = 0, nCPF = 0;
+
+  /* ── Status ── */
+  function setStatus(state) {
+    const labels = { idle:'Aguardando', running:'Processando…', done:'Concluído', error:'Erro' };
+    document.getElementById('dot').className = 'dot' + (state !== 'idle' ? ' ' + state : '');
+    document.getElementById('pillText').textContent = labels[state] ?? 'Aguardando';
+  }
+
+  /* ── Controls ── */
+  function setRunning(on) {
+    ['nicho','regiao','quantidade'].forEach(id => document.getElementById(id).disabled = on);
+    const btn = document.getElementById('btnStart');
+    btn.disabled = on;
+    btn.innerHTML = on
+      ? `<svg style="animation:spin .9s linear infinite" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg>Buscando…`
+      : `<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>Iniciar Busca`;
+  }
+
+  /* ── Log ── */
+  function addLog(tipo, icon, html, time) {
+    document.getElementById('logEmpty').style.display = 'none';
+    const wrap = document.getElementById('logWrap');
+    wrap.style.display = 'block';
+
+    const ts = time ? new Date(time).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '';
+    const el = document.createElement('div');
+    el.className = 'log-item';
+    el.innerHTML =
+      `<div class="log-icon ${tipo}">${icon}</div>` +
+      `<div class="log-body"><div class="log-text">${html}</div>${ts ? `<div class="log-time">${ts}</div>` : ''}</div>`;
+    wrap.appendChild(el);
+
+    const body = document.getElementById('logBody');
+    body.scrollTop = body.scrollHeight;
+  }
+
+  /* ── Lead Row ── */
+  function addLead(d) {
+    document.getElementById('leadsEmpty').style.display = 'none';
+    const tbl = document.getElementById('leadsTbl');
+    tbl.style.display = 'table';
+
+    const tipo = (d.tipoRegistro || '').toUpperCase();
+    const cls  = tipo === 'CNPJ' ? 'cnpj' : 'cpf';
+    const tr   = document.createElement('tr');
+    tr.innerHTML =
+      `<td><span class="tbl-num">${d.numero}</span></td>` +
+      `<td title="${esc(d.nomeEmpresa)}">${esc(d.nomeEmpresa||'N/A')}</td>` +
+      `<td title="${esc(d.email)}">${esc(d.email||'N/A')}</td>` +
+      `<td>${esc(d.telefone||'N/A')}</td>` +
+      `<td title="${esc(d.cpfCnpj)}">${esc(d.cpfCnpj||'N/A')}</td>` +
+      `<td><span class="type-tag ${cls}">${tipo||'—'}</span></td>`;
+    document.getElementById('leadsRows').appendChild(tr);
+
+    nLeads++;
+    if (d.email    && d.email    !== 'N/A') nEmail++;
+    if (d.telefone && d.telefone !== 'N/A') nTel++;
+    tipo === 'CNPJ' ? nCNPJ++ : nCPF++;
+    document.getElementById('leadsCount').textContent = nLeads;
+
+    const body = document.getElementById('leadsBody');
+    body.scrollTop = body.scrollHeight;
+  }
+
+  /* ── Summary ── */
+  function showSummary(arquivo) {
+    const s = document.getElementById('summaryStats');
+    s.innerHTML =
+      stat(nLeads, 'Leads',       'blue')  +
+      stat(nEmail, 'Com E-mail',  'green') +
+      stat(nTel,   'Com Telefone','green') +
+      stat(nCNPJ,  'CNPJ',       '')      +
+      stat(nCPF,   'CPF',        '');
+    document.getElementById('summary').classList.add('show');
+    if (!arquivo) document.getElementById('btnDl').style.display = 'none';
+  }
+
+  function stat(v, l, cls) {
+    return `<div class="stat"><div class="stat-val ${cls}">${v}</div><div class="stat-lbl">${l}</div></div>`;
+  }
+
+  /* ── Helpers ── */
+  function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function reset() {
+    nLeads = nEmail = nTel = nCNPJ = nCPF = 0;
+    document.getElementById('logEmpty').style.display  = '';
+    document.getElementById('logWrap').style.display   = 'none';
+    document.getElementById('logWrap').innerHTML        = '';
+    document.getElementById('leadsEmpty').style.display = '';
+    document.getElementById('leadsTbl').style.display  = 'none';
+    document.getElementById('leadsRows').innerHTML      = '';
+    document.getElementById('leadsCount').textContent   = '0';
+    document.getElementById('summary').classList.remove('show');
+    document.getElementById('btnDl').style.display     = '';
+  }
+
+  /* ── Start ── */
+  async function iniciar() {
+    const nicho    = document.getElementById('nicho').value.trim();
+    const regiao   = document.getElementById('regiao').value.trim();
+    const quantidade = parseInt(document.getElementById('quantidade').value, 10);
+
+    if (!nicho || !regiao || !quantidade || quantidade < 1) {
+      alert('Preencha todos os campos antes de iniciar.');
+      return;
+    }
+
+    if (es) { es.close(); es = null; }
+    reset();
+    setRunning(true);
+    setStatus('running');
+
+    try {
+      const res  = await fetch('/api/iniciar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nicho, regiao, quantidade })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.erro || 'Erro desconhecido');
+      sessId = data.sessionId;
+      conectar(sessId);
+    } catch (err) {
+      setRunning(false);
+      setStatus('error');
+      addLog('error', '✕', `Erro ao iniciar: <strong>${esc(err.message)}</strong>`);
+    }
+  }
+
+  /* ── SSE ── */
+  function conectar(sid) {
+    es = new EventSource(`/api/eventos/${sid}`);
+
+    es.onmessage = ({ data }) => {
+      const { tipo, dados, ts } = JSON.parse(data);
+
+      switch (tipo) {
+        case 'inicio':
+          addLog('search', '🔍',
+            `Buscando <strong>${esc(dados.nicho)}</strong> em <strong>${esc(dados.regiao)}</strong> — meta: <strong>${dados.quantidade}</strong> leads`, ts);
+          break;
+        case 'ferramenta':
+          if (dados.nome === 'consultar_whois')
+            addLog('whois', '🌐', `WHOIS → <strong>${esc(dados.dominio)}</strong>`, ts);
+          else if (dados.nome === 'consultar_cnpj')
+            addLog('cnpj', '🏢', `CNPJ → <strong>${esc(dados.cnpj)}</strong>`, ts);
+          break;
+        case 'lead_salvo':
+          addLead(dados);
+          addLog('lead', '✓',
+            `Lead <strong>#${dados.numero}</strong> — ${esc(dados.nomeEmpresa)}`, ts);
+          break;
+        case 'gerando_excel':
+          addLog('info', '📊', 'Gerando planilha Excel…', ts);
+          break;
+        case 'fim':
+          setRunning(false);
+          setStatus('done');
+          addLog('lead', '🎉',
+            `Busca concluída! <strong>${dados.totalLeads}</strong> lead(s) capturado(s).`, ts);
+          showSummary(dados.arquivo);
+          es.close(); es = null;
+          break;
+        case 'erro':
+          setRunning(false);
+          setStatus('error');
+          addLog('error', '✕', esc(dados.mensagem), ts);
+          es.close(); es = null;
+          break;
+        case 'log':
+          addLog('info', '›', esc(dados.mensagem), ts);
+          break;
+      }
+    };
+
+    es.onerror = () => {
+      if (es && es.readyState === EventSource.CLOSED) { es = null; }
+    };
+  }
+
+  /* ── Download ── */
+  function baixar() {
+    if (sessId) window.location.href = `/api/download/${sessId}`;
+  }
+</script>
+</body>
+</html>

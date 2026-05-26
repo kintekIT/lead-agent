@@ -1,0 +1,22 @@
+{
+  "name": "lead-agent",
+  "version": "1.0.0",
+  "description": "Agente de geração de leads com IA",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "web": "node src/server.js",
+    "gemini": "node src/index-gemini.js",
+    "web:gemini": "node src/server-gemini.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest",
+    "@google/generative-ai": "^0.24.1",
+    "axios": "latest",
+    "dotenv": "latest",
+    "exceljs": "latest",
+    "express": "^5.2.1",
+    "whois": "latest"
+  }
+}
