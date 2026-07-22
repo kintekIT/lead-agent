@@ -24,4 +24,19 @@ const limiteApi = rateLimit({
   message: { erro: 'Muitas requisições. Aguarde um minuto e tente novamente.' },
 });
 
-module.exports = { helmetMiddleware: helmet(), corsMiddleware, limiteApi, APP_ORIGIN };
+// O frontend (public/index.html) usa <script> inline e atributos onclick="".
+// O CSP padrão do helmet bloqueia os dois (script-src 'self' sem
+// 'unsafe-inline', script-src-attr 'none'), o que derruba silenciosamente
+// todos os botões da interface. Libera só o necessário para o app atual
+// funcionar, mantendo o resto do CSP padrão do helmet.
+const helmetMiddleware = helmet({
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      'script-src': ["'self'", "'unsafe-inline'"],
+      'script-src-attr': ["'unsafe-inline'"],
+    },
+  },
+});
+
+module.exports = { helmetMiddleware, corsMiddleware, limiteApi, APP_ORIGIN };
