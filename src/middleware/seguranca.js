@@ -29,12 +29,20 @@ const limiteApi = rateLimit({
 // 'unsafe-inline', script-src-attr 'none'), o que derruba silenciosamente
 // todos os botões da interface. Libera só o necessário para o app atual
 // funcionar, mantendo o resto do CSP padrão do helmet.
+//
+// connect-src também precisa liberar o domínio do Supabase: sem isso, ele
+// herda de default-src 'self' e bloqueia toda chamada do supabase-js feita
+// direto do navegador (login, refresh de sessão, logout) — só as chamadas
+// para o nosso próprio backend (/api/*) são same-origin e não são afetadas.
+const conectaSupabase = process.env.SUPABASE_URL ? [process.env.SUPABASE_URL] : [];
+
 const helmetMiddleware = helmet({
   contentSecurityPolicy: {
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
       'script-src': ["'self'", "'unsafe-inline'"],
       'script-src-attr': ["'unsafe-inline'"],
+      'connect-src': ["'self'", ...conectaSupabase],
     },
   },
 });
