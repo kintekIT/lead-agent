@@ -69,9 +69,18 @@ lead-agent/
 │   ├── index*.js              # Entradas via terminal (start / gemini / rpa)
 │   ├── server-gemini.js       # Servidor web Gemini (porta 3001)
 │   ├── scripts/
-│   │   └── importar-receita.js  # ⭐ Importa ZIPs da RFB → data/receita.db
+│   │   ├── importar-receita.js          # ⭐ Importa ZIPs da RFB → data/receita.db
+│   │   ├── validar-sinonimos.js         # Confere dicionário de nichos contra o banco real
+│   │   └── detectar-emails-genericos.js # Gera tabela emails_genericos (filtro de qualidade)
+│   ├── config/
+│   │   └── sinonimos-cnae.js  # Dicionário nicho → raiz de CNAE (18 validados + 34 pendentes)
+│   ├── middleware/
+│   │   ├── seguranca.js       # Helmet, CORS restrito, rate limit (história 4.1)
+│   │   └── validar.js         # Middleware genérico de validação zod (história 4.2)
+│   ├── validation/
+│   │   └── schemas.js         # Schemas zod das rotas (história 4.2)
 │   ├── tools/
-│   │   ├── receita.js         # ⭐ Query SQLite: sinônimos + CNAE + município
+│   │   ├── receita.js         # ⭐ Query SQLite: sinônimos + CNAE + município + filtros de qualidade
 │   │   ├── maps.js            # Scraping Google Maps (Playwright + stealth)
 │   │   ├── whois.js           # WHOIS registro.br
 │   │   ├── cnpj.js            # API pública cnpj.ws
@@ -115,10 +124,49 @@ Só entram no banco estabelecimentos **ativos** (situação 02) **com email vál
 - O JOIN em [src/tools/receita.js](src/tools/receita.js) compensa: `ON em.cnpj_basico = '"' || e.cnpj_basico || '"'`.
 - `municipios.nome` também tem aspas; o SELECT usa `REPLACE()` para limpar.
 - `estabelecimentos.municipio` guarda o **nome** da cidade (não o código), limpo, MAIÚSCULO e sem acentos.
+- `cnaes.descricao` **pode vir com aspas** (o importador só faz `.trim()`, não remove aspas como faz para os outros campos) — por isso o SELECT de atividade também usa `REPLACE()`.
+- `estabelecimentos.matriz` é `INTEGER`: `1` = matriz, `2` = filial (confirmado em `importar-receita.js`, linha ~329).
+
+### Qualidade dos resultados (história 3.4, 2026-07-15)
+
+`buscarLeadsReceita` agora aplica três filtros de qualidade na query principal:
+- **Somente matriz**: `AND e.matriz = 1` — evita filiais duplicando a mesma empresa na planilha.
+- **Telefone-lixo**: função pura `ehTelefoneValido()` registrada como UDF do SQLite (`db.function('telefone_valido', ...)`) — descarta números onde o assinante (dígitos após o DDD) é o mesmo dígito repetido (`9999-9999`, `0000-0000` etc).
+- **Email genérico** (ex.: email de escritório de contabilidade repetido em centenas de CNPJs de clientes): filtrado via `NOT IN (SELECT email FROM emails_genericos)`, mas **só se essa tabela já existir** — ela é gerada por [src/scripts/detectar-emails-genericos.js](src/scripts/detectar-emails-genericos.js) (`npm run detectar-emails-genericos`), que precisa ser rodado contra o banco real (varre as 23,9M linhas de `estabelecimentos`). Se a tabela não existir, a busca segue normalmente e retorna um aviso em `resultado.avisos` (propagado pro SSE como `log`).
+
+Planilha ganhou 3 colunas novas (sempre no fim, pra não deslocar índices de formatação existentes): **CNAE/Atividade**, **Cidade**, **Endereço** (este último montado por `formatarEndereco()` a partir de logradouro/número/bairro/CEP).
+
+Tudo isso foi testado de ponta a ponta com um banco SQLite fake (schema idêntico, sem dados reais) antes do commit — ver `test/qualidade-resultados.test.js` para os testes permanentes das funções puras.
 
 ### Sinônimos de nicho
 
-Mapa em [src/tools/receita.js](src/tools/receita.js) traduz termo coloquial → raiz que aparece na descrição do CNAE: `dentista→ODONTOL`, `médico→MEDIC`, `advogado→ADVOCA`, `contador→CONTAB`, `academia→CONDICIONAMENTO FISICO`, `farmácia→FARMAC`, etc. Todos os 18 sinônimos foram **validados contra o banco** em 2026-07-13. Além disso há um stemming simples (corta 2 chars finais de palavras > 6 letras).
+Dicionário extraído para [src/config/sinonimos-cnae.js](src/config/sinonimos-cnae.js) (história 3.3, 2026-07-15) — antes vivia inline em `receita.js`. Traduz termo coloquial → raiz que aparece na descrição do CNAE: `dentista→ODONTOL`, `médico→MEDIC`, `advogado→ADVOCA`, `contador→CONTAB`, `academia→CONDICIONAMENTO FISICO`, `farmácia→FARMAC`, etc. Além disso há um stemming simples (corta 2 chars finais de palavras > 6 letras) e sugestão de termos parecidos via distância de Levenshtein quando nenhum CNAE bate.
+
+---
+
+## 5.1 Segurança — Hardening HTTP e validação de entrada (histórias 4.1/4.2, 2026-07-15)
+
+### Hardening HTTP básico ([src/middleware/seguranca.js](src/middleware/seguranca.js))
+- **Helmet**: headers de segurança padrão (CSP, HSTS, X-Frame-Options, X-Content-Type-Options etc.) em toda resposta.
+- **CORS restrito**: só aceita `origin` igual à variável de ambiente `APP_ORIGIN` (default `http://localhost:3000` em dev). **Definir `APP_ORIGIN` no `.env` de produção** quando o domínio final existir (ver Épico 7.3).
+- **Limite de payload**: `express.json({ limit: '10kb' })` — corpo maior que isso recebe `413` antes mesmo de chegar na lógica de negócio.
+- **Rate limit**: 100 requisições/minuto por IP, aplicado só em `/api/*` (não trava o carregamento de assets estáticos da SPA). Primeira barreira, grossa — limite por usuário autenticado é a história 4.3, que depende do Épico 0/1.
+
+### Validação de entrada ([src/validation/schemas.js](src/validation/schemas.js) + [src/middleware/validar.js](src/middleware/validar.js))
+- Schemas **zod** para `POST /api/iniciar` (nicho, região, quantidade, modo) e para o parâmetro `:id` de `/api/eventos/:id` e `/api/download/:id`.
+- Erro de validação → `400` com `{ erro, detalhes: [{ campo, mensagem }] }`, um item por campo inválido.
+- `quantidade` é coagida de string pra number automaticamente (`z.coerce.number()`); `modo` tem allowlist estrita (`agente`/`rpa`/`receita`) — um valor fora disso já não passa da validação, então o roteamento de executor em `server.js` nunca recebe modo inesperado.
+- **Confirmado**: todas as queries SQL do projeto (em `receita.js`, `importar-receita.js`, `detectar-emails-genericos.js`, `validar-sinonimos.js`) já usavam `?` parametrizado antes desta história — nenhuma interpolação direta de input do usuário em SQL foi encontrada na varredura feita para fechar esta história.
+
+Testado manualmente de ponta a ponta (headers presentes, erros 400 com mensagem por campo, payload grande rejeitado com 413, rate limit ativando em ~100 req/min) além de 10 testes automatizados em `test/validacao.test.js`.
+
+**Nota de dependências**: `npm audit fix` (sem `--force`) resolveu 3 das 5 vulnerabilidades pré-existentes nas dependências transitivas antigas (form-data, qs, tmp). Resta uma (`uuid`, via `exceljs`) que só se resolve com downgrade do `exceljs` — deixada de lado por ora por ser breaking change, não introduzida por esta história.
+
+O arquivo é dividido em dois grupos:
+- `SINONIMOS_VALIDADOS` — os 18 originais, **validados contra o banco** em 2026-07-13.
+- `SINONIMOS_NOVOS_PENDENTE_VALIDACAO` — mais 34 nichos (petshop, salão de beleza, imobiliária, restaurante, oficina, escola, transportadora, hotel, construtora, seguros, ótica, joalheria, gráfica, etc.), mapeados a partir da nomenclatura oficial do CNAE 2.3, mas **ainda não conferidos linha a linha contra `receita.db`** (banco indisponível no momento da expansão). Rodar `npm run validar-sinonimos` numa máquina com o banco antes de considerar a história 3.3 encerrada — o script reporta qualquer raiz sem correspondência.
+
+Testes automatizados em `test/sinonimos-cnae.test.js` e `test/receita-matching.test.js` (`npm test`, Node test runner nativo, sem dependência nova) cobrem a integridade do dicionário e a lógica pura de matching/sugestão.
 
 ### Importação (já feita — não precisa rodar de novo)
 
