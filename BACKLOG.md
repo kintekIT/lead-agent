@@ -100,11 +100,12 @@ conveniente).
 - **Resend sem domínio verificado**: só entrega e-mail pro dono da própria conta (`kintekit@gmail.com`). Cadastro de qualquer outro usuário falha com 500 até resolver (verificar domínio, ou desativar SMTP customizado temporariamente, ou desligar "Confirm email" em dev). Achado em 2026-07-23.
 - **Preços dos pacotes de crédito são placeholder** (`src/config/pacotes-creditos.js`) — decisão de negócio dos sócios, não validar como definitivo.
 - **Migrations aplicadas manualmente**: não há credencial de banco direta neste ambiente de dev, só chaves de API — toda migration nova precisa ser colada no SQL Editor do dashboard Supabase por um humano. Ver `supabase/README.md` para a lista em ordem.
+- **Migration da 6.4 pendente de aplicar** (`supabase/migrations/20260723170000_metricas_negocio.sql`): sem ela, `GET /api/admin/metricas` e a aba "Métricas do negócio" do `admin.html` respondem/mostram erro (`PGRST202` — função não existe no schema cache, confirmado em 2026-07-23). Colar no SQL Editor (https://supabase.com/dashboard/project/bafsvszjpztbmbhmcwqk/sql/new) → Run. Depois, validar com a skill `validar-migration` e marcar 6.4 como ✅ aqui e no CONTEXTO.md.
 
 ## Próximos passos sugeridos (na ordem que fazem mais sentido)
 
 1. Resolver a pendência do Resend (bloqueia testar cadastro de usuários reais)
 2. Configurar `PIX_CHAVE` real (fecha o Épico 2 de vez)
-3. Épico 5 (observabilidade) — barato de fazer e melhora a visibilidade de tudo que vem depois
-4. Épico 6 (painel admin) — hoje a confirmação de Pix e gestão de usuário são só endpoints crus
-5. Épico 7 (deploy) — só depois de 5 e 6, senão vai pra produção sem conseguir operar nem monitorar
+3. Aplicar a migration da 6.4 (métricas) — é só colar no SQL Editor, ver acima
+4. Ver uma compra Pix de verdade passar pela fila (fecha a 6.3)
+5. Épico 7 (deploy) — Épico 6 já está pronto em código; falta só as duas validações acima antes de ir pra produção
