@@ -50,3 +50,19 @@ test('logger.error registra stack trace de um erro', () => {
   assert.equal(linha.level, 50); // pino: error = 50
   assert.ok(linha.err.stack.includes('falha simulada'));
 });
+
+test('LOG_DIR e LOG_RETENCAO_DIAS respeitam variáveis de ambiente (história 5.2)', () => {
+  delete require.cache[require.resolve('../src/utils/logger')];
+  const antigoDir = process.env.LOG_DIR;
+  const antigaRetencao = process.env.LOG_RETENCAO_DIAS;
+  process.env.LOG_DIR = '/tmp/logs-teste';
+  process.env.LOG_RETENCAO_DIAS = '45';
+
+  const { LOG_DIR, LOG_RETENCAO_DIAS } = require('../src/utils/logger');
+  assert.equal(LOG_DIR, '/tmp/logs-teste');
+  assert.equal(LOG_RETENCAO_DIAS, 45);
+
+  if (antigoDir === undefined) delete process.env.LOG_DIR; else process.env.LOG_DIR = antigoDir;
+  if (antigaRetencao === undefined) delete process.env.LOG_RETENCAO_DIAS; else process.env.LOG_RETENCAO_DIAS = antigaRetencao;
+  delete require.cache[require.resolve('../src/utils/logger')];
+});
