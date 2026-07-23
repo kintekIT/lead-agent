@@ -374,4 +374,18 @@ A `feature/6.1-admin-gestao-usuarios` (ver seção 12 — era a branch com traba
 
 ---
 
-*Última atualização: 2026-07-23 — histórias 5.4 e 6.1 mergeadas na main, 5.4 validada e fechada, kintekit@gmail.com promovido a admin; ver seções 13 e 14.*
+## 15. Épico 6 — história 6.3: fila de confirmação Pix (2026-07-23)
+
+Construída em cima do `admin.html` que a 6.1 acabou de trazer pra main (branch `feature/6.3-admin-fila-pix`, era uma reserva de nome vazia — só precisou dar fast-forward até a main atual, sem reconciliação).
+
+**Backend** (`src/server.js`): `expirarComprasPendentes()` — um `UPDATE purchases SET status='expirado' WHERE status='pendente' AND criado_em < now() - 48h`, best-effort (nunca derruba a leitura se falhar), chamado antes de `GET /api/compras`, `GET /api/compras/:id` e `GET /api/admin/compras/pendentes`. Decisão de design: expiração **lazy** (checada a cada leitura) em vez de um cron/job separado — não precisa de infraestrutura nova, e o resultado é sempre consistente com o que a tela está prestes a mostrar. `GET /api/admin/compras/pendentes` ganhou o embed `profiles(email)` (join via a FK `purchases.user_id → profiles.id` que já existia desde a migration 0001) pra mostrar quem comprou, não só o `user_id` cru.
+
+**Frontend** (`public/admin.html`): nova seção "Compras Pix pendentes" no topo do painel — tabela com email, pacote, valor (`fmtBRL`), data da compra e prazo até expirar (`fmtPrazo`, fica laranja quando faltam menos de 6h), botão "Confirmar" que chama `POST /api/admin/compras/:id/confirmar` e recarrega a fila.
+
+**Validado contra o banco real** (service_role, sem precisar de token de sessão): a query com o embed `profiles(email)` e o `UPDATE` de expiração rodaram sem erro contra o Supabase de verdade. `guh.712@hotmail.com` também promovido a `role='admin'` (mesmo caminho do `kintekit@gmail.com`, seção 14) pra acessar o painel de verdade no navegador — confirmado funcionando (lista de usuários, pill "🛠️ Admin" no header). **Não testado ainda**: o fluxo completo de confirmação de compra via HTTP (não existe nenhuma compra pendente no banco — ninguém comprou nada de verdade ainda). Não criei linha de teste no banco pra manter os dados reais limpos.
+
+**Bug lateral encontrado nesta sessão (não é bug de código):** sessão do navegador com access token expirado (aba aberta por muito tempo) causava loop infinito de redirecionamento entre `index.html` e `login.html` — `authFetch` manda pro login em qualquer 401 do `/api/me`, e `login.html` manda de volta assim que vê uma sessão no `localStorage`, mesmo com o token dentro dela já expirado. Confirmado que não é bug: gerei um token novo via magic link e o mesmo `getUser()` que o middleware usa validou normal. Correção é manual, do lado do usuário — limpar `localStorage` (chaves `sb-*`) ou logar de novo numa aba anônima.
+
+---
+
+*Última atualização: 2026-07-23 — histórias 5.4, 6.1 e 6.3 mergeadas na main; 5.4 validada e fechada; duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13, 14 e 15.*
