@@ -65,7 +65,7 @@ conveniente). A 6.1 é a exceção: tem trabalho de verdade, ver abaixo.
 - [x] 🟡 4.5 — Termos de Uso + Política de Privacidade (LGPD) — `termos.html` existe, aceite é registrado no cadastro, mas o texto ainda é placeholder
 
 ### Épico 5 — Observabilidade & Logs
-- [ ] ⬜ 5.1 — Logger estruturado + log de toda requisição
+- [x] ✅ 5.1 — Logger estruturado + log de toda requisição
 - [ ] ⬜ 5.2 — Rotação e retenção de logs
 - [ ] ⬜ 5.3 — Alertas de erro e uptime
 - [ ] ⬜ 5.4 — Auditoria de eventos de negócio — *depende de: 0.2 ✅*

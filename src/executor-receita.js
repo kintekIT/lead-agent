@@ -1,5 +1,6 @@
 const { buscarLeadsReceita, formatarEndereco } = require('./tools/receita');
 const { criarGerenciadorLeads }                = require('./tools/leads');
+const { logger }                               = require('./utils/logger');
 
 // `quantidadeBusca` é o tamanho do pool pedido ao banco — pode ser maior que
 // o que o usuário efetivamente vai receber, para sobrar candidatos depois do
@@ -9,7 +10,7 @@ const { criarGerenciadorLeads }                = require('./tools/leads');
 async function executarReceita(nicho, regiao, quantidadeBusca, onEvento = null, aplicarCota = null) {
   const emit = (tipo, dados) => { if (onEvento) onEvento(tipo, dados); };
 
-  console.log(`\n🗂️  Iniciando motor Receita Federal — Nicho: ${nicho} | Região: ${regiao} | Qtd: ${quantidadeBusca}\n`);
+  logger.info({ nicho, regiao, quantidadeBusca }, 'motor Receita Federal: iniciando busca');
   emit('inicio', { nicho, regiao, quantidade: quantidadeBusca });
   emit('log', { mensagem: 'Consultando base de dados da Receita Federal...' });
 
@@ -48,7 +49,7 @@ async function executarReceita(nicho, regiao, quantidadeBusca, onEvento = null, 
 
     if (r.sucesso) {
       const lead = r.lead;
-      console.log(`✅ Lead #${r.totalLeads}: ${lead.nomeEmpresa}`);
+      logger.debug({ numero: r.totalLeads, empresa: lead.nomeEmpresa }, 'lead salvo');
       emit('lead_salvo', {
         numero:       r.totalLeads,
         nomeEmpresa:  lead.nomeEmpresa,
@@ -65,15 +66,15 @@ async function executarReceita(nicho, regiao, quantidadeBusca, onEvento = null, 
     }
   }
 
-  console.log('\n📊 Gerando planilha...');
+  logger.info('motor Receita Federal: gerando planilha');
   emit('gerando_excel', {});
 
   const final = await finalizarLeads(nicho, regiao);
 
   if (final.sucesso) {
-    console.log(`\n✅ Concluído! ${final.totalLeads} leads → ${final.arquivo}`);
+    logger.info({ totalLeads: final.totalLeads, arquivo: final.arquivo }, 'motor Receita Federal: busca concluída');
   } else {
-    console.log(`\n⚠️  ${final.mensagem}`);
+    logger.warn({ mensagem: final.mensagem }, 'motor Receita Federal: busca terminou sem sucesso');
   }
 
   return final;
