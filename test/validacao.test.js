@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const {
   iniciarBodySchema, previaBodySchema, sessionIdParamSchema,
   adminListQuerySchema, adminUsuarioIdParamSchema, adminPapelBodySchema,
-  compraBodySchema, compraIdParamSchema,
+  compraBodySchema, compraIdParamSchema, adminCreditosBodySchema,
 } = require('../src/validation/schemas');
 const { validar } = require('../src/middleware/validar');
 
@@ -103,6 +103,24 @@ test('adminPapelBodySchema só aceita user ou admin', () => {
   assert.equal(adminPapelBodySchema.safeParse({ role: 'admin' }).success, true);
   assert.equal(adminPapelBodySchema.safeParse({ role: 'user' }).success, true);
   assert.equal(adminPapelBodySchema.safeParse({ role: 'superadmin' }).success, false);
+});
+
+test('adminCreditosBodySchema aceita delta positivo ou negativo com motivo, e coage delta pra número', () => {
+  const r1 = adminCreditosBodySchema.safeParse({ delta: '50', motivo: 'bônus de boas-vindas' });
+  assert.equal(r1.success, true);
+  assert.equal(r1.data.delta, 50);
+  assert.equal(typeof r1.data.delta, 'number');
+
+  const r2 = adminCreditosBodySchema.safeParse({ delta: -20, motivo: 'estorno de compra duplicada' });
+  assert.equal(r2.success, true);
+  assert.equal(r2.data.delta, -20);
+});
+
+test('adminCreditosBodySchema rejeita delta zero, fora do limite, ou motivo curto/ausente', () => {
+  assert.equal(adminCreditosBodySchema.safeParse({ delta: 0, motivo: 'motivo válido' }).success, false);
+  assert.equal(adminCreditosBodySchema.safeParse({ delta: 200000, motivo: 'motivo válido' }).success, false);
+  assert.equal(adminCreditosBodySchema.safeParse({ delta: 10, motivo: 'oi' }).success, false);
+  assert.equal(adminCreditosBodySchema.safeParse({ delta: 10 }).success, false);
 });
 
 test('middleware validar() com fonte "query" substitui req.query mesmo sendo um getter só-leitura (Express 5)', () => {
