@@ -327,6 +327,10 @@ Também: handler de erro global no fim do `server.js` (Express 5 encaminha rejei
 
 **Armadilha encontrada (não é do pino, é do ambiente):** ao reaproveitar uma branch vazia pré-criada, ela ficava presa num commit antigo da main — corrigido na skill/agente pra sempre resetar pro HEAD atual depois de confirmar que não há commit próprio pra perder (ver seção 12). Além disso, `npm install <pacote>` seguido de `git reset --hard` sem commitar o `package.json` no meio perde a dependência instalada — aconteceu com `pino`/`pino-http` nesta mesma história, corrigido reinstalando antes de seguir.
 
+**5.2 — Rotação e retenção de logs:** `src/utils/logger.js` ganhou um segundo destino via `pino.transport({ targets: [...] })` — continua escrevendo em stdout (dev não perde a visão em tempo real) **e** em `logs/app*.log`, girando por dia ou por 10MB (o que vier primeiro), via `pino-roll`. Retenção usa `limit.count` do próprio pino-roll (ele mesmo apaga os arquivos mais antigos ao girar) — não precisou de script de limpeza separado; como a rotação é diária, `limit.count = LOG_RETENCAO_DIAS` (padrão 30) já equivale a "reter N dias". Configurável via `LOG_DIR`/`LOG_RETENCAO_DIAS` no `.env`. `logs/` entrou no `.gitignore`.
+
+**Bug achado e corrigido antes de dar por certo:** o transport (stdout+arquivo) usa worker thread — sem cuidado, isso rodaria **até durante `npm test`**, criando arquivo de log de verdade e um worker thread por execução de teste, só porque `logger.js` é importado pelos testes. Corrigido: `criarLogger()` sem `destino` explícito agora também cai no modo síncrono simples (sem transport) quando `NODE_ENV=test` — o script `test` do `package.json` passou a setar isso via `cross-env` (funciona igual em qualquer shell/SO). Confirmado rodando `npm test` antes/depois do fix: sem o fix, `logs/` aparecia na raiz do repo depois de rodar os testes; com o fix, não aparece mais.
+
 ---
 
 *Última atualização: 2026-07-23 — Épico 5 em andamento (5.1 concluída); ver seção 13.*

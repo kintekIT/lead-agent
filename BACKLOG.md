@@ -66,7 +66,7 @@ conveniente). A 6.1 é a exceção: tem trabalho de verdade, ver abaixo.
 
 ### Épico 5 — Observabilidade & Logs
 - [x] ✅ 5.1 — Logger estruturado + log de toda requisição
-- [ ] ⬜ 5.2 — Rotação e retenção de logs
+- [x] ✅ 5.2 — Rotação e retenção de logs
 - [ ] ⬜ 5.3 — Alertas de erro e uptime
 - [ ] ⬜ 5.4 — Auditoria de eventos de negócio — *depende de: 0.2 ✅*
 
