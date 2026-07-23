@@ -12,6 +12,7 @@ Ver `BACKLOG.md` pro status de cada história (o que já está ✅/🟡/⬜) e `
 
 ## Passos
 
+0. **Se `$numero` não existir no `BACKLOG.md`** (feature nova, fora dos 9 épicos originais): antes de tudo, adicione uma entrada pra ela lá — escolha um número que não colida (ex.: próximo da última história do épico mais próximo, ou um novo épico se não se encaixar em nenhum existente) e um status ⬜. O `BACKLOG.md` é a fonte de verdade de progresso mesmo pra coisas que não estavam no plano original; não pular esse cadastro só porque "não é do backlog oficial".
 1. **Checar dependências**: no `BACKLOG.md`, confirme que as histórias das quais `$numero` depende já estão ✅. Se alguma não estiver, avise antes de prosseguir — não implemente em cima de uma base que não existe ainda.
 2. **Checar se a branch já existe antes de criar uma nova** (o sócio costuma pré-criar branches pra reservar história — não assuma que não existe):
    ```
