@@ -313,6 +313,8 @@ Também criado `BACKLOG.md` na raiz — checklist estruturado das 41 histórias 
 
 **Por que desse jeito:** tudo isso são arquivos versionados no git — `git push`/`git pull`/`git merge` já bastam pra compartilhar com o sócio e manter os dois em sincronia, sem precisar de nenhuma ferramenta nova. O agente e as skills são descobertos automaticamente pelo Claude Code assim que alguém abre este repo (não precisa registrar em lugar nenhum).
 
+**Atualização do mesmo dia:** a skill `nova-historia` sempre criava a branch do zero, sem checar se já existia uma. Rodando `git fetch kintekit --prune` apareceram **22 branches pré-criadas** cobrindo quase todo o backlog restante (3.2, 4.3, 4.5, 5.1-5.4, 6.1-6.4, 7.1-7.6, 8.3-8.4) — 21 delas vazias (só reserva de nome), mas `feature/6.1-admin-gestao-usuarios` tem trabalho real (`admin.html` com ~300 linhas + mudanças em `server.js`), aparentemente o sócio trabalhando em paralelo, baseada num ponto antigo da main. Corrigido: a skill e o agente agora mandam checar branches existentes antes de criar uma nova, e param pra avisar o usuário se acharem trabalho real de outra pessoa em vez de mexer sozinhas. Detalhe registrado no `BACKLOG.md`.
+
 ---
 
 *Última atualização: 2026-07-23 — agente/skills do Claude Code e BACKLOG.md criados; ver seção 12.*

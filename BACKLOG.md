@@ -6,12 +6,22 @@ backlog original (artifact `73e7f80e-504d-459b-b720-00e1185a7fdb`, ver
 **já está pronto** — o artifact é a foto do dia em que foi escrito, este
 arquivo evolui com o código.
 
-**Convenção de status:** ✅ pronto e validado · 🟡 parcial/pendência conhecida · ⬜ não iniciado
+**Convenção de status:** ✅ pronto e validado · 🟡 parcial/pendência conhecida · 🟠 em progresso por alguém agora · ⬜ não iniciado
 
 Sempre que uma história for concluída: marcar aqui, e acrescentar uma
 entrada datada em `CONTEXTO.md` explicando o quê/como/por quê. Sempre que
 começar a trabalhar em algo, ler este arquivo primeiro pra saber o estado
 real antes de assumir qualquer coisa.
+
+**Antes de criar uma branch nova para uma história**: rodar
+`git fetch kintekit --prune` e `git branch -a | grep -i "<número>"` — o
+sócio pré-cria (e às vezes já preenche) branches `feature/{número}-*` pra
+histórias futuras. Em 2026-07-23 existiam branches vazias (só reserva de
+nome) pra quase todo o backlog restante (3.2, 4.3, 4.5, 5.1-5.4, 6.2-6.4,
+7.1-7.6, 8.3-8.4) e uma com nome ligeiramente diferente do que usei pra
+2.5 (`feature/2.5-planos-compra-pix`, vazia — a 2.5 real foi mergeada via
+`feature/2.5-pix-planos`, pode apagar a duplicata vazia quando for
+conveniente). A 6.1 é a exceção: tem trabalho de verdade, ver abaixo.
 
 ---
 
@@ -61,8 +71,8 @@ real antes de assumir qualquer coisa.
 - [ ] ⬜ 5.4 — Auditoria de eventos de negócio
 
 ### Épico 6 — Painel Admin
-- [ ] ⬜ 6.1 — Gestão de usuários
-- [ ] ⬜ 6.2 — Créditos manuais (atribuir/estornar)
+- [ ] 🟠 6.1 — Gestão de usuários — **em progresso pelo sócio** na branch `feature/6.1-admin-gestao-usuarios` (remote `kintekit`), `public/admin.html` já com ~300 linhas. Branch baseada num ponto antigo da main (antes do Épico 2 completo) — vai precisar reconciliação manual antes de mergear, igual aconteceu com a `release/kintek`. Não mexer nela sem alinhar com ele primeiro.
+- [ ] ⬜ 6.2 — Créditos manuais (atribuir/estornar) — depende de 5.4 (auditoria), que não existe ainda
 - [x] 🟡 6.3 — Fila de confirmação de compras Pix — só endpoints JSON crus (`/api/admin/compras/pendentes` + `/confirmar`), sem UI nem expiração automática de 48h
 - [ ] ⬜ 6.4 — Métricas do negócio
 

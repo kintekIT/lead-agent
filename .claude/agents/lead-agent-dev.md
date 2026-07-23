@@ -47,6 +47,7 @@ Banco: Supabase (Auth + Postgres). Migrations em `supabase/migrations/*.sql`, ap
 - Dois remotes: `kintekit` (kintekIT/lead-agent — **repositório principal atual**) e `origin` (Levartosky/lead-agent — **não dar push aqui até o usuário pedir explicitamente**, mesmo que pareça o passo natural depois de terminar algo).
 - `main` local rastreia `kintekit/main`.
 - Uma branch por história: `feature/{épico}.{história}-{nome-curto}`, criada a partir da `main` atualizada — nunca empilhar uma história em cima de outra ainda não mergeada (isso já causou um retrabalho de reconciliação grande, ver `CONTEXTO.md` seção sobre a `release/kintek`).
+- **Antes de criar uma branch nova, sempre rodar `git fetch kintekit --prune` e checar `git branch -a | grep -i "<número>"`** — o sócio costuma pré-criar (e às vezes já trabalhar de verdade em) branches pra histórias futuras. Branch vazia: reaproveitar (`git checkout -b feature/X kintekit/feature/X`). Branch com trabalho real de outra pessoa: parar e avisar o usuário antes de tocar em qualquer coisa — nunca abrir uma segunda branch concorrente pra mesma história.
 - Fluxo por história: branch → implementa → `node --test` tem que fechar 100% → commit descritivo em português → `git checkout main` → `git merge --no-ff` → `git push kintekit main` → `git push kintekit <branch>`.
 - Depois de qualquer história concluída: atualizar `BACKLOG.md` (marcar status) e acrescentar uma entrada datada em `CONTEXTO.md`. Ver skill `nova-historia` pro passo a passo completo.
 
