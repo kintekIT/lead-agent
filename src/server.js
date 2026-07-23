@@ -4,11 +4,12 @@ const path    = require('path');
 const { executarAgente }  = require('./agent');
 const { executarRPA }     = require('./rpa');
 const { executarReceita } = require('./executor-receita');
+const { buscarLeadsReceita } = require('./tools/receita');
 const { autenticar, exigirAdmin, saldoCreditos } = require('./auth/middleware');
 const { supabaseAdmin, configurado } = require('./auth/supabase');
 const { helmetMiddleware, corsMiddleware, limiteApi } = require('./middleware/seguranca');
 const { validar } = require('./middleware/validar');
-const { iniciarBodySchema, sessionIdParamSchema } = require('./validation/schemas');
+const { iniciarBodySchema, previaBodySchema, sessionIdParamSchema } = require('./validation/schemas');
 const { tamanhoPool } = require('./config/pool-dedup');
 
 const app = express();
@@ -152,6 +153,33 @@ app.post('/api/iniciar', validar(iniciarBodySchema, 'body'), async (req, res) =>
       atualizarBusca({ status: 'erro' });
       emit('erro', { mensagem: err.message });
     });
+});
+
+/* ── POST /api/previa ── conta quantos leads novos existem, sem gerar nem cobrar (história 2.4) */
+app.post('/api/previa', validar(previaBodySchema, 'body'), async (req, res) => {
+  const { nicho, regiao, quantidade } = req.body;
+
+  const resultado = buscarLeadsReceita(nicho, regiao, tamanhoPool(quantidade));
+  if (!resultado.sucesso) {
+    return res.status(404).json({ erro: resultado.mensagem });
+  }
+
+  let saldo;
+  try {
+    saldo = await saldoCreditos(req.usuario.id);
+  } catch (err) {
+    return res.status(500).json({ erro: err.message });
+  }
+
+  const cnpjs = resultado.leads.map(l => l.cnpj);
+  const { data: novosNoPool, error } = await supabaseAdmin.rpc('contar_novos', {
+    p_user_id: req.usuario.id,
+    p_cnpjs:   cnpjs,
+  });
+  if (error) return res.status(500).json({ erro: `Falha ao consultar prévia: ${error.message}` });
+
+  const novos = Math.min(novosNoPool ?? 0, quantidade);
+  res.json({ totalEncontrado: resultado.leads.length, novos, custoEstimado: novos, saldo });
 });
 
 /* ── GET /api/eventos/:id ── stream SSE (token via ?token=) */
