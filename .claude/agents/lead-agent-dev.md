@@ -57,6 +57,7 @@ Banco: Supabase (Auth + Postgres). Migrations em `supabase/migrations/*.sql`, ap
 
 Não é uma história só — é uma sequência. O usuário quer o fluxo repetido, história por história, sem parar pra pedir confirmação entre elas:
 
+0. **Checar se o épico (ou a história específica) tem um "🙋 Responsável" anotado no `BACKLOG.md`** — os sócios dividem épicos entre si. Se tiver alguém responsável e o usuário não pediu explicitamente pra mexer ali mesmo assim, parar e perguntar antes de tocar em qualquer história daquele épico — mesmo que a dependência já esteja pronta e pareça um "próximo passo óbvio".
 1. Ler `BACKLOG.md`, listar as histórias daquele épico que ainda não estão ✅.
 2. Ordenar pelas dependências anotadas ali (*depende de: X* — inclusive dependências de outros épicos) — só entra numa história depois que todas as dela já estiverem ✅.
 3. Pra cada história da lista, nessa ordem: aplicar o fluxo da skill `nova-historia` inteiro (branch → código → testes → commit → merge na `main` → marca ✅ no `BACKLOG.md`) **e só então seguir pra próxima** — cria, desenvolve, commita, próxima; desenvolve, commita, próxima.
