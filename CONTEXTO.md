@@ -388,4 +388,16 @@ Construída em cima do `admin.html` que a 6.1 acabou de trazer pra main (branch 
 
 ---
 
-*Última atualização: 2026-07-23 — histórias 5.4, 6.1 e 6.3 mergeadas na main; 5.4 validada e fechada; duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13, 14 e 15.*
+## 16. Épico 6 — história 6.2: créditos manuais (2026-07-23)
+
+`POST /api/admin/usuarios/:id/creditos` — `{ delta, motivo }` (delta != 0, |delta| ≤ 100000; motivo ≥ 5 chars). Insere direto em `credit_ledger` com `motivo: 'ajuste'` (positivo credita, negativo estorna — a tabela já usa o sinal do delta pra distinguir, não precisou de dois motivos separados) e audita em `events` via `registrarEvento({ acao: 'ajuste_credito', metadados: { delta, motivo } })` — o texto livre da justificativa mora só na auditoria, porque `credit_ledger.motivo` é uma categoria fechada (check constraint), não campo de texto.
+
+Não precisou de migration nova — reaproveita a trigger `trg_impedir_saldo_negativo` (história 2.3) que já existia pra travar qualquer INSERT em `credit_ledger` que deixasse o saldo negativo; a rota só traduz esse erro do Postgres pra um 409 com mensagem amigável (`saldo insuficiente`, detectado por regex na mensagem de erro).
+
+**Validado de ponta a ponta contra o banco real** (token de admin de verdade via magic link, mesma técnica da `validar-migration`): creditei 3, estornei 3 de volta (saldo líquido zero), tentei estornar mais do que o saldo tinha (409 correto), mandei motivo curto (400 correto), e confirmei os dois eventos gravados em `events` com `delta`/`motivo` nos metadados.
+
+**Frontend:** formulário simples dentro do card de detalhe do usuário (`admin.html`) — campo de quantidade (+/-), campo de motivo, botão "Aplicar ajuste" com `confirm()` antes de mandar.
+
+---
+
+*Última atualização: 2026-07-23 — histórias 5.4, 6.1, 6.2 e 6.3 mergeadas na main; duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13-16.*

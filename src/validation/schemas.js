@@ -54,6 +54,17 @@ const compraIdParamSchema = z.object({
   id: z.string().uuid('Identificador de compra inválido.'),
 });
 
+// Créditos manuais (história 6.2) — delta != 0 (positivo credita, negativo
+// estorna); limite alto só pra pegar erro de digitação grosseiro (ex.: um
+// zero a mais), a validação de saldo insuficiente pra estornar é do banco.
+const adminCreditosBodySchema = z.object({
+  delta: z.coerce.number({ message: 'Quantidade deve ser um número.' })
+    .int('Quantidade deve ser um número inteiro.')
+    .refine(v => v !== 0, 'Quantidade não pode ser zero.')
+    .refine(v => Math.abs(v) <= 100000, 'Quantidade fora do intervalo permitido (máx. 100000).'),
+  motivo: z.string().trim().min(5, 'Motivo deve ter ao menos 5 caracteres.').max(300),
+});
+
 module.exports = {
   iniciarBodySchema,
   previaBodySchema,
@@ -63,4 +74,5 @@ module.exports = {
   adminPapelBodySchema,
   compraBodySchema,
   compraIdParamSchema,
+  adminCreditosBodySchema,
 };

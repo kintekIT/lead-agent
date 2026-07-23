@@ -17,7 +17,7 @@ const { logger } = require('./utils/logger');
 const {
   iniciarBodySchema, previaBodySchema, sessionIdParamSchema,
   adminListQuerySchema, adminUsuarioIdParamSchema, adminPapelBodySchema,
-  compraBodySchema, compraIdParamSchema,
+  compraBodySchema, compraIdParamSchema, adminCreditosBodySchema,
 } = require('./validation/schemas');
 const { tamanhoPool } = require('./config/pool-dedup');
 const { PACOTES } = require('./config/pacotes-creditos');
@@ -403,6 +403,34 @@ app.patch(
     const { error } = await supabaseAdmin.from('profiles').update({ role: req.body.role }).eq('id', id);
     if (error) return res.status(500).json({ erro: `Falha ao alterar papel: ${error.message}` });
     res.json({ ok: true, role: req.body.role });
+  }
+);
+
+/* ── POST /api/admin/usuarios/:id/creditos ── ajuste manual de saldo (história 6.2) */
+app.post(
+  '/api/admin/usuarios/:id/creditos',
+  exigirAdmin,
+  validar(adminUsuarioIdParamSchema, 'params'),
+  validar(adminCreditosBodySchema, 'body'),
+  async (req, res) => {
+    const { id } = req.params;
+    const { delta, motivo } = req.body;
+
+    const { error } = await supabaseAdmin.from('credit_ledger').insert({ user_id: id, delta, motivo: 'ajuste' });
+    if (error) {
+      // O trigger trg_impedir_saldo_negativo (história 2.3) barra estorno maior que o saldo.
+      const saldoInsuficiente = /saldo insuficiente/i.test(error.message);
+      return res.status(saldoInsuficiente ? 409 : 500).json({
+        erro: saldoInsuficiente ? 'Saldo insuficiente para esse estorno.' : `Falha ao ajustar créditos: ${error.message}`,
+      });
+    }
+
+    // "Quem fez e por quê" (justificativa) fica na auditoria — credit_ledger.motivo
+    // é só a categoria ('ajuste'), não tem coluna livre pra texto (história 5.4).
+    registrarEvento({ atorId: req.usuario.id, acao: 'ajuste_credito', alvoTipo: 'profile', alvoId: id, metadados: { delta, motivo } });
+
+    const saldo = await saldoCreditos(id);
+    res.json({ ok: true, saldo });
   }
 );
 
