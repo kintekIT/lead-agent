@@ -65,6 +65,11 @@ const adminCreditosBodySchema = z.object({
   motivo: z.string().trim().min(5, 'Motivo deve ter ao menos 5 caracteres.').max(300),
 });
 
+// Métricas do negócio (história 6.4) — janela em dias pras séries/somas
+const adminMetricasQuerySchema = z.object({
+  dias: z.coerce.number({ message: 'Dias deve ser um número.' }).int().min(1).max(365).default(30),
+});
+
 module.exports = {
   iniciarBodySchema,
   previaBodySchema,
@@ -75,4 +80,5 @@ module.exports = {
   compraBodySchema,
   compraIdParamSchema,
   adminCreditosBodySchema,
+  adminMetricasQuerySchema,
 };
