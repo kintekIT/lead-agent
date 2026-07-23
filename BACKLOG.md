@@ -68,13 +68,14 @@ conveniente).
 - [x] ✅ 5.1 — Logger estruturado + log de toda requisição
 - [x] ✅ 5.2 — Rotação e retenção de logs
 - [x] 🟡 5.3 — Alertas de erro e uptime — código pronto (Sentry condicional a `SENTRY_DSN`, endpoint `/health`), mas falta ação manual do usuário: criar conta free no Sentry (colar o DSN no `.env`) e cadastrar a URL pública no UptimeRobot (ou similar) apontando pra `/health` — isso é 100% configuração externa, não tem mais nada de código
-- [x] 🟡 5.4 — Auditoria de eventos de negócio — *depende de: 0.2 ✅* — tabela `events` + `registrarEvento()` prontos e ligados na confirmação manual de compra Pix; falta aplicar a migration e validar contra o banco real com uma conta admin (nenhuma conta de teste é admin no momento). Escopo restrito a ações administrativas — searches/credit_ledger/purchases já cobrem a trilha de busca/consumo/compra de forma estruturada, não duplicado em `events`
+- [x] ✅ 5.4 — Auditoria de eventos de negócio — *depende de: 0.2 ✅* — migration aplicada e validada de ponta a ponta com conta admin real (`GET /api/admin/eventos` responde 200). Escopo restrito a ações administrativas — searches/credit_ledger/purchases já cobrem a trilha de busca/consumo/compra de forma estruturada, não duplicado em `events`
 
 ### Épico 6 — Painel Admin
+**🙋 Responsável: sócio (Gustavo).** Não iniciar história nova aqui sem alinhar com ele primeiro — mesmo que a dependência esteja pronta.
 - [x] ✅ 6.1 — Gestão de usuários — *depende de: 0.3 ✅, 1.4 ✅* — lista com busca por email + paginação, detalhe (saldo/extrato/buscas), bloquear/desbloquear (`supabaseAdmin.auth.admin.updateUserById`) e alterar papel, tudo em `public/admin.html` + rotas `GET/POST/PATCH /api/admin/usuarios*`. Reconciliada 3x contra a main enquanto os Épicos 2.5 e 5 avançavam em paralelo — nenhum conflito de lógica, só imports/headers concatenados.
-- [ ] ⬜ 6.2 — Créditos manuais (atribuir/estornar) — *depende de: 2.2 ✅, 5.4 ⬜*
-- [x] 🟡 6.3 — Fila de confirmação de compras Pix — *depende de: 2.5 🟡* — UI em `public/admin.html` (tabela com email/pacote/valor/prazo, botão Confirmar) + expiração automática de 48h (`expirarComprasPendentes()`, roda antes de qualquer leitura de compras). Falta só teste ponta a ponta com uma compra pendente de verdade (nenhuma existe no banco agora) e uma conta admin de fato (mesma pendência da 5.4) — a query com join `profiles(email)` e o `UPDATE` de expiração já rodaram contra o banco real sem erro
-- [ ] ⬜ 6.4 — Métricas do negócio — *depende de: 5.4 ⬜*
+- [ ] ⬜ 6.2 — Créditos manuais (atribuir/estornar) — *depende de: 2.2 ✅, 5.4 ✅ (desbloqueada)*
+- [x] 🟡 6.3 — Fila de confirmação de compras Pix — *depende de: 2.5 🟡* — UI em `public/admin.html` (tabela com email/pacote/valor/prazo, botão Confirmar) + expiração automática de 48h (`expirarComprasPendentes()`, roda antes de qualquer leitura de compras). Falta só teste ponta a ponta com uma compra pendente de verdade (nenhuma existe no banco agora) — a query com join `profiles(email)` e o `UPDATE` de expiração já rodaram contra o banco real sem erro, e já existe conta admin real pra testar (5.4/6.1)
+- [ ] ⬜ 6.4 — Métricas do negócio — *depende de: 5.4 ✅ (desbloqueada)*
 
 ## Fase 4 — Produção
 
