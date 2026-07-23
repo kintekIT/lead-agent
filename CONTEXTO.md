@@ -289,4 +289,43 @@ O produto será vendido. Modelo definido (proposta a validar entre os sócios):
 
 ---
 
-*Última atualização: 2026-07-14, refletindo o working tree que será commitado após o commit `3f5bbdf`.*
+## 11. Épico 2 — Créditos & Monetização (implementado em 2026-07-22)
+
+Todas as 6 histórias do Épico 2 (mais a 3.1, dedup, que é pré-requisito técnico da 2.3):
+
+- **2.1 Trial 20 créditos** — já existia desde a Fase 1 (trigger `conceder_trial` na migration da fundação).
+- **2.2 Saldo e extrato** — já existia desde a Fase 1; adicionado paginação ("Carregar mais") e coluna de busca associada em `conta.html`.
+- **2.3 Débito atômico + 3.1 Dedup** — nova função `entregar_leads()` (migration `20260722130000`): recebe um pool de CNPJs candidatos, filtra os já entregues ao usuário nos últimos 6 meses, corta pelo saldo real e pela quantidade pedida, grava tudo atomicamente. Trava por `pg_advisory_xact_lock` + trigger que impede saldo negativo (concorrência). `server.js` agora busca 3x mais candidatos no `receita.db` do que o pedido (`src/config/pool-dedup.js`) para sobrar depois do dedup.
+- **2.4 Prévia** — `contar_novos()` (migration `20260722140000`) + `POST /api/previa`: conta quantos leads são novos sem gravar nada. O botão "Iniciar Busca" agora mostra um `confirm()` com o resultado antes de disparar a busca de verdade.
+- **2.5 Pix** — `src/utils/pix.js` gera o payload EMV/BR Code (copia-e-cola + QR via `qrcode`); `PACOTES` em `src/config/pacotes-creditos.js` (**preços placeholder — ajustar antes de produção**); `POST /api/compras` cria a cobrança, `GET /api/compras/:id` é usado pro polling em `planos.html`. Confirmação ainda é manual (etapa 1 do backlog) — sem painel admin (Épico 6) ainda, confirme assim:
+  ```bash
+  # pegue um token de admin (role=admin no profiles) e rode:
+  curl http://localhost:3000/api/admin/compras/pendentes -H "Authorization: Bearer $TOKEN"
+  curl -X POST http://localhost:3000/api/admin/compras/<id>/confirmar -H "Authorization: Bearer $TOKEN"
+  ```
+  Precisa configurar `PIX_CHAVE`/`PIX_NOME_RECEBEDOR`/`PIX_CIDADE` no `.env` — sem `PIX_CHAVE`, `/api/compras` responde 503.
+- **2.6 Saldo zerado → free** — com saldo 0, o botão "Iniciar Busca" em `index.html` vira "Comprar créditos" (leva pra `/planos.html`); a prévia continua funcionando sem saldo.
+
+**Migrations pendentes de aplicar no dashboard (SQL Editor, na ordem):**
+`20260722130000_debito_atomico_dedup.sql` → `20260722140000_previa_contagem.sql` → `20260722150000_confirmar_compra_pix.sql`.
+
+**O que ainda falta do backlog original (fora do escopo desta rodada):** 3.2 (histórico de re-download sem debitar — já existe listagem, falta só o re-download não cobrar de novo, mas como já não cobra na primeira tela isso é conferir), Épico 6 completo (painel admin de verdade — por ora só endpoints JSON), 4.3/4.4/4.5.
+
+---
+
+## 12. Agente e skills do Claude Code para este projeto (2026-07-23)
+
+Criado `.claude/agents/lead-agent-dev.md` — um subagente do Claude Code com toda a arquitetura, convenções e regras de negócio deste projeto no system prompt (motores, schema Supabase, padrões de migration/SQL, fluxo de git por história, como testar de verdade). Junto, duas skills:
+
+- `.claude/skills/nova-historia/SKILL.md` — proceduraliza o fluxo completo de implementar uma história do backlog (branch → migration → código → testes → merge → docs).
+- `.claude/skills/validar-migration/SKILL.md` — proceduraliza como testar uma função Postgres nova contra o banco real (técnica do token via magic link, checklist de dedup/concorrência).
+
+Também criado `BACKLOG.md` na raiz — checklist estruturado das 41 histórias dos 9 épicos com status real (✅/🟡/⬜), que é a fonte de verdade sobre progresso; este `CONTEXTO.md` continua sendo o changelog narrativo do *porquê*.
+
+**Por que desse jeito:** tudo isso são arquivos versionados no git — `git push`/`git pull`/`git merge` já bastam pra compartilhar com o sócio e manter os dois em sincronia, sem precisar de nenhuma ferramenta nova. O agente e as skills são descobertos automaticamente pelo Claude Code assim que alguém abre este repo (não precisa registrar em lugar nenhum).
+
+**Atualização do mesmo dia:** a skill `nova-historia` sempre criava a branch do zero, sem checar se já existia uma. Rodando `git fetch kintekit --prune` apareceram **22 branches pré-criadas** cobrindo quase todo o backlog restante (3.2, 4.3, 4.5, 5.1-5.4, 6.1-6.4, 7.1-7.6, 8.3-8.4) — 21 delas vazias (só reserva de nome), mas `feature/6.1-admin-gestao-usuarios` tem trabalho real (`admin.html` com ~300 linhas + mudanças em `server.js`), aparentemente o sócio trabalhando em paralelo, baseada num ponto antigo da main. Corrigido: a skill e o agente agora mandam checar branches existentes antes de criar uma nova, e param pra avisar o usuário se acharem trabalho real de outra pessoa em vez de mexer sozinhas. Detalhe registrado no `BACKLOG.md`.
+
+---
+
+*Última atualização: 2026-07-23 — agente/skills do Claude Code e BACKLOG.md criados; ver seção 12.*

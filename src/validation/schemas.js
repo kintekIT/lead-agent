@@ -45,6 +45,15 @@ const adminPapelBodySchema = z.object({
   role: z.enum(['user', 'admin'], { message: 'Papel deve ser user ou admin.' }),
 });
 
+// Compra de créditos via Pix (história 2.5)
+const compraBodySchema = z.object({
+  pacote: z.enum(['200', '500', '1000'], { message: 'Pacote inválido.' }),
+});
+
+const compraIdParamSchema = z.object({
+  id: z.string().uuid('Identificador de compra inválido.'),
+});
+
 module.exports = {
   iniciarBodySchema,
   previaBodySchema,
@@ -52,4 +61,6 @@ module.exports = {
   adminListQuerySchema,
   adminUsuarioIdParamSchema,
   adminPapelBodySchema,
+  compraBodySchema,
+  compraIdParamSchema,
 };

@@ -20,12 +20,18 @@ language sql
 stable
 set search_path = public
 as $$
+  -- "as u(cnpj)" (em vez de só "as cnpj") é obrigatório aqui: delivered_leads
+  -- também tem uma coluna chamada cnpj, e um alias de coluna sem tabela some
+  -- por trás da coluna de mesmo nome da tabela interna (dl.cnpj) na
+  -- resolução de nomes do Postgres — sem u., "cnpj" vira dl.cnpj = dl.cnpj
+  -- (sempre verdadeiro) em vez de comparar com o cnpj de fora, e a função
+  -- sempre devolve 0. Confirmado rodando contra o banco real.
   select count(*)::integer
-  from unnest(p_cnpjs) as cnpj
+  from unnest(p_cnpjs) as u(cnpj)
   where not exists (
     select 1 from public.delivered_leads dl
     where dl.user_id = p_user_id
-      and dl.cnpj = cnpj
+      and dl.cnpj = u.cnpj
       and dl.delivered_at > now() - (p_janela_meses || ' months')::interval
   );
 $$;
