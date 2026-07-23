@@ -21,7 +21,7 @@ nome) pra quase todo o backlog restante (3.2, 4.3, 4.5, 5.1-5.4, 6.2-6.4,
 7.1-7.6, 8.3-8.4) e uma com nome ligeiramente diferente do que usei pra
 2.5 (`feature/2.5-planos-compra-pix`, vazia — a 2.5 real foi mergeada via
 `feature/2.5-pix-planos`, pode apagar a duplicata vazia quando for
-conveniente). A 6.1 é a exceção: tem trabalho de verdade, ver abaixo.
+conveniente).
 
 ---
 
@@ -71,7 +71,7 @@ conveniente). A 6.1 é a exceção: tem trabalho de verdade, ver abaixo.
 - [ ] ⬜ 5.4 — Auditoria de eventos de negócio — *depende de: 0.2 ✅*
 
 ### Épico 6 — Painel Admin
-- [ ] 🟠 6.1 — Gestão de usuários — *depende de: 0.3 ✅, 1.4 ✅* — **em progresso pelo sócio** na branch `feature/6.1-admin-gestao-usuarios` (remote `kintekit`), `public/admin.html` já com ~300 linhas. Branch baseada num ponto antigo da main (antes do Épico 2 completo) — vai precisar reconciliação manual antes de mergear, igual aconteceu com a `release/kintek`. Não mexer nela sem alinhar com ele primeiro.
+- [x] ✅ 6.1 — Gestão de usuários — *depende de: 0.3 ✅, 1.4 ✅* — lista com busca por email + paginação, detalhe (saldo/extrato/buscas), bloquear/desbloquear (`supabaseAdmin.auth.admin.updateUserById`) e alterar papel, tudo em `public/admin.html` + rotas `GET/POST/PATCH /api/admin/usuarios*`. Reconciliada 3x contra a main enquanto os Épicos 2.5 e 5 avançavam em paralelo — nenhum conflito de lógica, só imports/headers concatenados.
 - [ ] ⬜ 6.2 — Créditos manuais (atribuir/estornar) — *depende de: 2.2 ✅, 5.4 ⬜*
 - [x] 🟡 6.3 — Fila de confirmação de compras Pix — *depende de: 2.5 🟡* — só endpoints JSON crus (`/api/admin/compras/pendentes` + `/confirmar`), sem UI nem expiração automática de 48h
 - [ ] ⬜ 6.4 — Métricas do negócio — *depende de: 5.4 ⬜*
