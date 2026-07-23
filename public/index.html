@@ -157,6 +157,12 @@
     .btn-start:hover:not(:disabled) { opacity: .9; box-shadow: 0 6px 22px rgba(79,142,247,0.45); }
     .btn-start:active:not(:disabled) { transform: scale(.97); }
     .btn-start:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
+    /* Saldo zerado (história 2.6): o botão vira um CTA de compra em vez de sumir */
+    .btn-start.btn-start-cta {
+      background: linear-gradient(135deg, #F59E0B 0%, #EA580C 100%);
+      box-shadow: 0 4px 16px rgba(234,88,12,0.35);
+    }
+    .btn-start.btn-start-cta:hover:not(:disabled) { box-shadow: 0 6px 22px rgba(234,88,12,0.5); }
     .btn-start svg { width: 15px; height: 15px; flex-shrink: 0; }
 
     /* ────── Mode Toggle ────── */
@@ -505,6 +511,7 @@
   let sessId = null, es = null;
   let nLeads = 0, nEmail = 0, nTel = 0, nCNPJ = 0, nCPF = 0;
   let modoAtual = 'receita';
+  let saldoAtual = null;
 
   /* ── Sessão obrigatória: sem login, volta para /login.html ── */
   (async () => {
@@ -514,10 +521,27 @@
     atualizarSaldo();
   })();
 
+  // Saldo zerado → o botão vira CTA de compra em vez de só recusar a busca (história 2.6)
+  function atualizarBotaoStart() {
+    const btn = document.getElementById('btnStart');
+    if (btn.disabled) return; // não troca o rótulo no meio de uma busca em andamento
+    if (saldoAtual === 0) {
+      btn.classList.add('btn-start-cta');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>Comprar créditos`;
+      btn.onclick = () => { window.location.href = '/planos.html'; };
+    } else {
+      btn.classList.remove('btn-start-cta');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>Iniciar Busca`;
+      btn.onclick = () => confirmarBusca();
+    }
+  }
+
   async function atualizarSaldo() {
     try {
       const me = await (await authFetch('/api/me')).json();
+      saldoAtual = me.saldo;
       document.getElementById('saldoVal').textContent = `${me.saldo} crédito${me.saldo === 1 ? '' : 's'}`;
+      atualizarBotaoStart();
     } catch {}
   }
 
