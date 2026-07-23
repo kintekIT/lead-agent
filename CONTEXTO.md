@@ -370,6 +370,8 @@ A `feature/6.1-admin-gestao-usuarios` (ver seção 12 — era a branch com traba
 
 **Restante do Épico 6:** 5.4 (auditoria) foi mergeada em paralelo a este merge (ver seção 13) — 6.2 (créditos manuais) e 6.4 (métricas) já podem ser iniciadas, mas 5.4 ainda está 🟡 (migration não aplicada no banco real, ver seção 13) — validar isso primeiro evita construir 6.2/6.4 em cima de uma RPC que não existe de verdade ainda. 6.3 (fila de confirmação Pix) tem os endpoints (`/api/admin/compras/pendentes` + `/confirmar`, da história 2.5) mas a UI natural é dentro do `admin.html`, que só passou a existir na main com este merge — construir a UI da 6.3 antes deste merge teria duplicado o arquivo.
 
+**Atualização (mesmo dia):** `kintekit@gmail.com` promovido a `role = 'admin'` de verdade (`update profiles set role='admin' where email=...`, via `service_role` — não precisou de SQL Editor manual, é um UPDATE normal que o service_role já pode fazer). Com token de admin real, validei ao vivo: `/api/admin/ping` (200), `/api/admin/eventos` (200, `[]` — **confirma que a migration da 5.4 já foi aplicada**, marcado ✅ no `BACKLOG.md`), e `/api/admin/usuarios` da 6.1 (200, já lista as 3 contas existentes: `kintekit@gmail.com` admin, `magrotto23@gmail.com` e `guh.712@hotmail.com` como `user` — confirma de quebra que o fix do Resend/SMTP (seção anterior) funcionou, cadastro de terceiro não falha mais).
+
 ---
 
-*Última atualização: 2026-07-23 — histórias 5.4 e 6.1 mergeadas na main; ver seções 13 e 14.*
+*Última atualização: 2026-07-23 — histórias 5.4 e 6.1 mergeadas na main, 5.4 validada e fechada, kintekit@gmail.com promovido a admin; ver seções 13 e 14.*
