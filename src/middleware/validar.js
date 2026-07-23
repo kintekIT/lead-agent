@@ -15,7 +15,13 @@ function validar(schema, fonte = 'body') {
       return res.status(400).json({ erro: 'Dados inválidos.', detalhes: erros });
     }
 
-    req[fonte] = resultado.data;
+    if (fonte === 'query') {
+      // Express 5: req.query é um getter só-leitura no prototype — pra
+      // substituir pelos dados já coagidos, redefine a propriedade na instância.
+      Object.defineProperty(req, 'query', { value: resultado.data, configurable: true, enumerable: true });
+    } else {
+      req[fonte] = resultado.data;
+    }
     next();
   };
 }

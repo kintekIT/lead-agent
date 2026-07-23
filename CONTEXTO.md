@@ -176,6 +176,17 @@ Testes automatizados em `test/sinonimos-cnae.test.js` e `test/receita-matching.t
 
 ---
 
+## 5.2 Painel Admin — Gestão de usuários (história 6.1, 2026-07-22)
+
+Primeira tela do Épico 6 (Painel Admin). Todas as rotas ficam atrás de `exigirAdmin` (história 0.3) — o frontend só reflete, quem barra é o backend (história 1.4).
+
+- **Backend** ([src/server.js](src/server.js)): `GET /api/admin/usuarios` (lista paginada de 20, busca por email via `ilike` em `profiles`), `GET /api/admin/usuarios/:id` (detalhe: perfil + saldo + últimos 20 do `credit_ledger` + últimas 20 `searches` + status de bloqueio), `POST /api/admin/usuarios/:id/bloquear|desbloquear` (usa `supabaseAdmin.auth.admin.updateUserById` com `ban_duration` — não existe "banimento permanente" nativo no GoTrue, a convenção é `'876000h'` ≈ 100 anos), `PATCH /api/admin/usuarios/:id/papel` (promove/rebaixa `user`↔`admin` em `profiles.role`). As três rotas de escrita recusam a própria conta do admin logado (evita autobloqueio/autorebaixamento).
+- **Frontend**: [public/admin.html](public/admin.html) — lista com busca (debounce 300ms) e paginação, clique na linha abre o detalhe (saldo, extrato, buscas, ações). Guard de admin no frontend também (`/api/me` → `role !== 'admin'` → redireciona), mas é só UX; a garantia real é o backend.
+- Link "🛠️ Admin" aparece no header de `index.html` e `conta.html` só quando `me.role === 'admin'`.
+- **Bug do Express 5 encontrado e corrigido**: `req.query` no Express 5 é um getter sem setter (`Object.defineProperty` no prototype) — o middleware `validar()` (história 4.2) fazia `req[fonte] = resultado.data`, o que quebra para `fonte='query'` (primeira vez que o projeto valida query string). Corrigido em [src/middleware/validar.js](src/middleware/validar.js) redefinindo a propriedade na instância da requisição quando `fonte === 'query'`. Coberto por teste em `test/validacao.test.js`.
+
+---
+
 ## 6. Atualizações deste commit (changes de 2026-07-14)
 
 Tudo abaixo está no working tree e será commitado em sequência:
@@ -347,4 +358,18 @@ Endpoint `GET /health` (público, sem auth, sem round-trip no banco) pro monitor
 
 ---
 
-*Última atualização: 2026-07-23 — Épico 5 concluído (5.1-5.4); ver seção 13.*
+## 14. Épico 6 — Painel Admin: história 6.1 mergeada na main (2026-07-23)
+
+A `feature/6.1-admin-gestao-usuarios` (ver seção 12 — era a branch com trabalho real que o `nova-historia` encontrou) foi reconciliada contra a main **três vezes** antes de fechar: a branch nasceu antes da história 2.5 (Pix) ser mergeada, e enquanto a reconciliação acontecia o épico 5 inteiro (5.1/5.2/5.3) foi mergeado em paralelo por outra sessão. Nenhum dos conflitos era de lógica — sempre a mesma forma (import novo concatenado com os imports de schema admin, ou pill novo no header ao lado do pill admin) porque as histórias tocaram os mesmos arquivos (`server.js`, `schemas.js`, `index.html`/`conta.html`) em pontos diferentes. `node --test` fechou 100% (48 testes) depois de cada reconciliação; `npm install` foi necessário em duas delas pra trazer dependência nova que só existia no `package.json` vindo da main (`qrcode`, depois `pino`/`@sentry/node`).
+
+**6.1 — Gestão de usuários:** `public/admin.html` — lista de contas com busca por email (debounce) e paginação de 20; clique numa linha abre o detalhe (saldo via `saldo_creditos()`, últimas 20 linhas de `credit_ledger`, últimas 20 `searches`, status bloqueado/ativo). Ações: bloquear/desbloquear usa `supabaseAdmin.auth.admin.updateUserById(id, { ban_duration })` — GoTrue não tem "banimento permanente" nativo, convenção adotada foi `'876000h'` (~100 anos); alterar papel (`user`↔`admin`) escreve em `profiles.role`. As três rotas de escrita (`POST .../bloquear`, `POST .../desbloquear`, `PATCH .../papel`) recusam a própria conta do admin logado, pra evitar autobloqueio/autorebaixamento por engano. Link "🛠️ Admin" no header de `index.html`/`conta.html` só aparece quando `/api/me` retorna `role === 'admin'`.
+
+**Bug de infraestrutura encontrado nesta sessão (não é da 6.1, mas vale registrar):** middleware `validar()` (história 4.2) fazia `req[fonte] = resultado.data`, funciona pra `body`/`params` mas quebra pra `fonte='query'` no Express 5 — `req.query` é um getter sem setter definido direto na instância da requisição (`Object.defineProperty` no prototype do `express/lib/request.js`), então atribuir gera `TypeError`. A 6.1 foi a primeira história a validar query string (`GET /api/admin/usuarios?busca=&pagina=`), o que expôs o problema. Corrigido em `src/middleware/validar.js`: quando `fonte === 'query'`, redefine a propriedade na instância (`Object.defineProperty(req, 'query', { value: ..., configurable: true, enumerable: true })`) em vez de atribuir direto. Coberto por teste dedicado em `test/validacao.test.js` que reproduz o getter-só-leitura do Express 5.
+
+**Nota sobre processos node.exe órfãos no Windows/Git Bash:** rodar `node src/server.js &` pelo Bash tool e depois `kill $!` não mata o processo de verdade — no Git Bash/MSYS o `$!` é o PID do job do bash, não o PID nativo do Windows do `node.exe`. Isso deixou processos zumbis segurando a porta 3000 entre smoke tests desta sessão (dois `node.exe` órfãos encontrados via `tasklist`). Pra matar de verdade: achar o PID real via `netstat -ano | grep ":3000"` (última coluna) e `taskkill //F //PID <pid>`.
+
+**Restante do Épico 6:** 5.4 (auditoria) foi mergeada em paralelo a este merge (ver seção 13) — 6.2 (créditos manuais) e 6.4 (métricas) já podem ser iniciadas, mas 5.4 ainda está 🟡 (migration não aplicada no banco real, ver seção 13) — validar isso primeiro evita construir 6.2/6.4 em cima de uma RPC que não existe de verdade ainda. 6.3 (fila de confirmação Pix) tem os endpoints (`/api/admin/compras/pendentes` + `/confirmar`, da história 2.5) mas a UI natural é dentro do `admin.html`, que só passou a existir na main com este merge — construir a UI da 6.3 antes deste merge teria duplicado o arquivo.
+
+---
+
+*Última atualização: 2026-07-23 — histórias 5.4 e 6.1 mergeadas na main; ver seções 13 e 14.*

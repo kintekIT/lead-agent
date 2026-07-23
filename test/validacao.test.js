@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { iniciarBodySchema, previaBodySchema, sessionIdParamSchema, compraBodySchema, compraIdParamSchema } = require('../src/validation/schemas');
+const {
+  iniciarBodySchema, previaBodySchema, sessionIdParamSchema,
+  adminListQuerySchema, adminUsuarioIdParamSchema, adminPapelBodySchema,
+  compraBodySchema, compraIdParamSchema,
+} = require('../src/validation/schemas');
 const { validar } = require('../src/middleware/validar');
 
 test('iniciarBodySchema aceita um corpo válido e coage quantidade para número', () => {
@@ -72,6 +76,49 @@ test('middleware validar() chama next() e substitui req.body em caso de sucesso'
 
   assert.equal(chamouNext, true);
   assert.equal(req.body.quantidade, 10);
+});
+
+test('adminListQuerySchema aceita busca opcional e coage página para número, com padrão 1', () => {
+  const r1 = adminListQuerySchema.safeParse({});
+  assert.equal(r1.success, true);
+  assert.equal(r1.data.pagina, 1);
+
+  const r2 = adminListQuerySchema.safeParse({ busca: 'fulano@exemplo.com', pagina: '3' });
+  assert.equal(r2.success, true);
+  assert.equal(r2.data.pagina, 3);
+  assert.equal(typeof r2.data.pagina, 'number');
+});
+
+test('adminListQuerySchema rejeita página menor que 1', () => {
+  assert.equal(adminListQuerySchema.safeParse({ pagina: 0 }).success, false);
+});
+
+test('adminUsuarioIdParamSchema exige um uuid válido', () => {
+  assert.equal(adminUsuarioIdParamSchema.safeParse({ id: '123e4567-e89b-12d3-a456-426614174000' }).success, true);
+  assert.equal(adminUsuarioIdParamSchema.safeParse({ id: '../../etc/passwd' }).success, false);
+  assert.equal(adminUsuarioIdParamSchema.safeParse({ id: '' }).success, false);
+});
+
+test('adminPapelBodySchema só aceita user ou admin', () => {
+  assert.equal(adminPapelBodySchema.safeParse({ role: 'admin' }).success, true);
+  assert.equal(adminPapelBodySchema.safeParse({ role: 'user' }).success, true);
+  assert.equal(adminPapelBodySchema.safeParse({ role: 'superadmin' }).success, false);
+});
+
+test('middleware validar() com fonte "query" substitui req.query mesmo sendo um getter só-leitura (Express 5)', () => {
+  // Reproduz o formato real do Express 5: req.query é definido via
+  // Object.defineProperty com getter, sem setter, direto na instância.
+  const req = {};
+  Object.defineProperty(req, 'query', { configurable: true, enumerable: true, get: () => ({ pagina: '2' }) });
+
+  let chamouNext = false;
+  const res = { status() { return this; }, json() {} };
+
+  validar(adminListQuerySchema, 'query')(req, res, () => { chamouNext = true; });
+
+  assert.equal(chamouNext, true);
+  assert.equal(req.query.pagina, 2);
+  assert.equal(typeof req.query.pagina, 'number');
 });
 
 test('middleware validar() responde 400 com detalhes por campo em caso de erro', () => {

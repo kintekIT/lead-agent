@@ -389,6 +389,7 @@
       <a class="status-pill user-pill saldo-pill" href="/conta.html" title="Ver extrato de créditos">💎 <span id="saldoVal">–</span></a>
       <a class="status-pill user-pill" href="/planos.html" title="Comprar créditos">🛒 Planos</a>
       <a class="status-pill user-pill" href="/conta.html" title="Minha Conta">👤 <span id="userEmail">…</span></a>
+      <a class="status-pill user-pill" href="/admin.html" title="Painel Admin" id="pillAdmin" style="display:none">🛠️ Admin</a>
       <button class="status-pill user-pill" onclick="sair()">Sair</button>
     </div>
   </header>
@@ -542,6 +543,7 @@
       const me = await (await authFetch('/api/me')).json();
       saldoAtual = me.saldo;
       document.getElementById('saldoVal').textContent = `${me.saldo} crédito${me.saldo === 1 ? '' : 's'}`;
+      if (me.role === 'admin') document.getElementById('pillAdmin').style.display = '';
       atualizarBotaoStart();
     } catch {}
   }
