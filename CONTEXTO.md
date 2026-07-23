@@ -350,6 +350,12 @@ Endpoint `GET /health` (público, sem auth, sem round-trip no banco) pro monitor
 1. Criar conta free em [sentry.io](https://sentry.io), criar um projeto Node/Express, colar o DSN em `SENTRY_DSN` no `.env`.
 2. Criar conta free no [UptimeRobot](https://uptimerobot.com) (ou similar) e cadastrar um monitor HTTP apontando pra `<url-pública>/health`, com alerta por email/Telegram — só existe URL pública depois do Épico 7 (deploy); em dev, dá pra testar localmente mas não faz sentido monitorar `localhost`.
 
+**5.4 — Auditoria de eventos de negócio:** migration `20260723160000_auditoria_eventos.sql` cria `events` (ator/ação/alvo/metadados, RLS: só admin lê, escrita só service_role) + `src/auditoria.js` (`registrarEvento()`, nunca deixa a falha de auditoria derrubar a ação auditada — só loga o erro via pino). Ligado em `/api/admin/compras/:id/confirmar` (o único ajuste manual de crédito que já existe em código). `GET /api/admin/eventos` lista os últimos 50 (sem UI, mesmo padrão cru dos outros endpoints admin até o Épico 6 existir de verdade).
+
+**Escopo deliberadamente restrito:** o backlog original pede uma trilha de "logins, buscas, débitos, compras e ajustes manuais" — mas buscas (`searches`), débitos/compras (`credit_ledger`/`purchases`) já são estruturados e consultáveis nessas tabelas próprias; duplicar tudo isso também em `events` seria redundância sem ganho real pro tamanho atual do projeto. Fiquei só com o que essas tabelas NÃO cobrem: ações administrativas com o "quem fez e por quê". Se o volume de admins/ações crescer a ponto de precisar de um feed unificado de auditoria cruzando tudo, revisitar.
+
+**Ainda falta pra fechar de verdade:** aplicar a migration (nenhuma automatizada nesta sessão tem credencial de banco) e validar `registrarEvento`/`GET /api/admin/eventos` contra o banco real — precisa de uma conta com `role = 'admin'`, e nenhuma das contas de teste atuais é admin ainda (`update public.profiles set role = 'admin' where email = '...'`, documentado no `supabase/README.md`).
+
 ---
 
 ## 14. Épico 6 — Painel Admin: história 6.1 mergeada na main (2026-07-23)
@@ -362,8 +368,8 @@ A `feature/6.1-admin-gestao-usuarios` (ver seção 12 — era a branch com traba
 
 **Nota sobre processos node.exe órfãos no Windows/Git Bash:** rodar `node src/server.js &` pelo Bash tool e depois `kill $!` não mata o processo de verdade — no Git Bash/MSYS o `$!` é o PID do job do bash, não o PID nativo do Windows do `node.exe`. Isso deixou processos zumbis segurando a porta 3000 entre smoke tests desta sessão (dois `node.exe` órfãos encontrados via `tasklist`). Pra matar de verdade: achar o PID real via `netstat -ano | grep ":3000"` (última coluna) e `taskkill //F //PID <pid>`.
 
-**Restante do Épico 6:** 6.2 (créditos manuais) e 6.4 (métricas) continuam bloqueadas por 5.4 (auditoria de eventos), que ainda não existe. 6.3 (fila de confirmação Pix) tem os endpoints (`/api/admin/compras/pendentes` + `/confirmar`, da história 2.5) mas a UI natural é dentro do `admin.html` que só passou a existir na main com este merge — construir a UI da 6.3 antes deste merge teria duplicado o arquivo.
+**Restante do Épico 6:** 5.4 (auditoria) foi mergeada em paralelo a este merge (ver seção 13) — 6.2 (créditos manuais) e 6.4 (métricas) já podem ser iniciadas, mas 5.4 ainda está 🟡 (migration não aplicada no banco real, ver seção 13) — validar isso primeiro evita construir 6.2/6.4 em cima de uma RPC que não existe de verdade ainda. 6.3 (fila de confirmação Pix) tem os endpoints (`/api/admin/compras/pendentes` + `/confirmar`, da história 2.5) mas a UI natural é dentro do `admin.html`, que só passou a existir na main com este merge — construir a UI da 6.3 antes deste merge teria duplicado o arquivo.
 
 ---
 
-*Última atualização: 2026-07-23 — história 6.1 mergeada na main; ver seção 14.*
+*Última atualização: 2026-07-23 — histórias 5.4 e 6.1 mergeadas na main; ver seções 13 e 14.*
