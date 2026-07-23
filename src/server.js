@@ -9,8 +9,15 @@ const { autenticar, exigirAdmin, saldoCreditos } = require('./auth/middleware');
 const { supabaseAdmin, configurado } = require('./auth/supabase');
 const { helmetMiddleware, corsMiddleware, limiteApi } = require('./middleware/seguranca');
 const { validar } = require('./middleware/validar');
-const { iniciarBodySchema, previaBodySchema, sessionIdParamSchema } = require('./validation/schemas');
+const { iniciarBodySchema, previaBodySchema, sessionIdParamSchema, compraBodySchema, compraIdParamSchema } = require('./validation/schemas');
 const { tamanhoPool } = require('./config/pool-dedup');
+const { PACOTES } = require('./config/pacotes-creditos');
+const { gerarPayloadPix } = require('./utils/pix');
+const QRCode = require('qrcode');
+
+const PIX_CHAVE  = process.env.PIX_CHAVE || '';
+const PIX_NOME   = process.env.PIX_NOME_RECEBEDOR || 'LEAD AGENT';
+const PIX_CIDADE = process.env.PIX_CIDADE || 'SAO PAULO';
 
 const app = express();
 app.use(helmetMiddleware);
@@ -209,9 +216,94 @@ app.get('/api/download/:id', validar(sessionIdParamSchema, 'params'), (req, res)
   res.download(sessao.arquivo);
 });
 
+/* ── GET /api/pacotes ── pacotes de créditos disponíveis (história 2.5) */
+app.get('/api/pacotes', (_req, res) => {
+  res.json(Object.entries(PACOTES).map(([pacote, info]) => ({ pacote, ...info })));
+});
+
+/* ── POST /api/compras ── cria uma compra pendente e devolve o Pix pra pagar (história 2.5) */
+app.post('/api/compras', validar(compraBodySchema, 'body'), async (req, res) => {
+  if (!PIX_CHAVE) {
+    return res.status(503).json({ erro: 'Pix ainda não configurado no servidor — defina PIX_CHAVE no .env.' });
+  }
+
+  const { pacote } = req.body;
+  const info = PACOTES[pacote];
+
+  const { data: compra, error } = await supabaseAdmin
+    .from('purchases')
+    .insert({ user_id: req.usuario.id, pacote, creditos: info.creditos, valor_centavos: info.valorCentavos })
+    .select('id, criado_em')
+    .single();
+  if (error) return res.status(500).json({ erro: `Falha ao criar a compra: ${error.message}` });
+
+  const payload = gerarPayloadPix({
+    chave: PIX_CHAVE,
+    valor: info.valorCentavos / 100,
+    nome:  PIX_NOME,
+    cidade: PIX_CIDADE,
+    txid:  compra.id,
+  });
+  const qrCodeDataUrl = await QRCode.toDataURL(payload);
+
+  res.json({
+    id: compra.id,
+    pacote,
+    creditos: info.creditos,
+    valorCentavos: info.valorCentavos,
+    criadoEm: compra.criado_em,
+    status: 'pendente',
+    pixCopiaECola: payload,
+    qrCodeDataUrl,
+  });
+});
+
+/* ── GET /api/compras ── minhas compras (história 2.5) */
+app.get('/api/compras', async (req, res) => {
+  const { data, error } = await supabaseAdmin
+    .from('purchases')
+    .select('id, pacote, creditos, valor_centavos, status, criado_em, pago_em')
+    .eq('user_id', req.usuario.id)
+    .order('criado_em', { ascending: false })
+    .limit(20);
+  if (error) return res.status(500).json({ erro: error.message });
+  res.json(data);
+});
+
+/* ── GET /api/compras/:id ── status de uma compra específica, pro polling da tela de planos ── */
+app.get('/api/compras/:id', validar(compraIdParamSchema, 'params'), async (req, res) => {
+  const { data, error } = await supabaseAdmin
+    .from('purchases')
+    .select('id, pacote, creditos, status, criado_em, pago_em')
+    .eq('id', req.params.id)
+    .eq('user_id', req.usuario.id)
+    .single();
+  if (error || !data) return res.status(404).json({ erro: 'Compra não encontrada.' });
+  res.json(data);
+});
+
 /* ── Rotas do painel admin (guard reutilizável — história 0.3) ── */
 app.get('/api/admin/ping', exigirAdmin, (req, res) => {
   res.json({ ok: true, admin: req.usuario.email });
+});
+
+// Confirmação de compras Pix — etapa 1 da história 2.5 (admin confirma
+// manualmente). A fila/UI bonita no painel admin é a história 6.3; por ora
+// são só endpoints JSON, chamáveis com o token de um usuário role=admin.
+app.get('/api/admin/compras/pendentes', exigirAdmin, async (_req, res) => {
+  const { data, error } = await supabaseAdmin
+    .from('purchases')
+    .select('id, user_id, pacote, creditos, valor_centavos, criado_em')
+    .eq('status', 'pendente')
+    .order('criado_em', { ascending: true });
+  if (error) return res.status(500).json({ erro: error.message });
+  res.json(data);
+});
+
+app.post('/api/admin/compras/:id/confirmar', exigirAdmin, validar(compraIdParamSchema, 'params'), async (req, res) => {
+  const { error } = await supabaseAdmin.rpc('confirmar_compra', { p_purchase_id: req.params.id });
+  if (error) return res.status(400).json({ erro: error.message });
+  res.json({ ok: true });
 });
 
 const PORT = process.env.PORT || 3000;

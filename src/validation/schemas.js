@@ -30,4 +30,19 @@ const sessionIdParamSchema = z.object({
   id: z.string().regex(/^s_\d+_[a-z0-9]+$/, 'Identificador de sessão inválido.'),
 });
 
-module.exports = { iniciarBodySchema, previaBodySchema, sessionIdParamSchema };
+// Compra de créditos via Pix (história 2.5)
+const compraBodySchema = z.object({
+  pacote: z.enum(['200', '500', '1000'], { message: 'Pacote inválido.' }),
+});
+
+const compraIdParamSchema = z.object({
+  id: z.string().uuid('Identificador de compra inválido.'),
+});
+
+module.exports = {
+  iniciarBodySchema,
+  previaBodySchema,
+  sessionIdParamSchema,
+  compraBodySchema,
+  compraIdParamSchema,
+};

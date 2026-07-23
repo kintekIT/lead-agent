@@ -278,4 +278,28 @@ O produto será vendido. Modelo definido (proposta a validar entre os sócios):
 
 ---
 
-*Última atualização: 2026-07-14, refletindo o working tree que será commitado após o commit `3f5bbdf`.*
+## 11. Épico 2 — Créditos & Monetização (implementado em 2026-07-22)
+
+Todas as 6 histórias do Épico 2 (mais a 3.1, dedup, que é pré-requisito técnico da 2.3):
+
+- **2.1 Trial 20 créditos** — já existia desde a Fase 1 (trigger `conceder_trial` na migration da fundação).
+- **2.2 Saldo e extrato** — já existia desde a Fase 1; adicionado paginação ("Carregar mais") e coluna de busca associada em `conta.html`.
+- **2.3 Débito atômico + 3.1 Dedup** — nova função `entregar_leads()` (migration `20260722130000`): recebe um pool de CNPJs candidatos, filtra os já entregues ao usuário nos últimos 6 meses, corta pelo saldo real e pela quantidade pedida, grava tudo atomicamente. Trava por `pg_advisory_xact_lock` + trigger que impede saldo negativo (concorrência). `server.js` agora busca 3x mais candidatos no `receita.db` do que o pedido (`src/config/pool-dedup.js`) para sobrar depois do dedup.
+- **2.4 Prévia** — `contar_novos()` (migration `20260722140000`) + `POST /api/previa`: conta quantos leads são novos sem gravar nada. O botão "Iniciar Busca" agora mostra um `confirm()` com o resultado antes de disparar a busca de verdade.
+- **2.5 Pix** — `src/utils/pix.js` gera o payload EMV/BR Code (copia-e-cola + QR via `qrcode`); `PACOTES` em `src/config/pacotes-creditos.js` (**preços placeholder — ajustar antes de produção**); `POST /api/compras` cria a cobrança, `GET /api/compras/:id` é usado pro polling em `planos.html`. Confirmação ainda é manual (etapa 1 do backlog) — sem painel admin (Épico 6) ainda, confirme assim:
+  ```bash
+  # pegue um token de admin (role=admin no profiles) e rode:
+  curl http://localhost:3000/api/admin/compras/pendentes -H "Authorization: Bearer $TOKEN"
+  curl -X POST http://localhost:3000/api/admin/compras/<id>/confirmar -H "Authorization: Bearer $TOKEN"
+  ```
+  Precisa configurar `PIX_CHAVE`/`PIX_NOME_RECEBEDOR`/`PIX_CIDADE` no `.env` — sem `PIX_CHAVE`, `/api/compras` responde 503.
+- **2.6 Saldo zerado → free** — com saldo 0, o botão "Iniciar Busca" em `index.html` vira "Comprar créditos" (leva pra `/planos.html`); a prévia continua funcionando sem saldo.
+
+**Migrations pendentes de aplicar no dashboard (SQL Editor, na ordem):**
+`20260722130000_debito_atomico_dedup.sql` → `20260722140000_previa_contagem.sql` → `20260722150000_confirmar_compra_pix.sql`.
+
+**O que ainda falta do backlog original (fora do escopo desta rodada):** 3.2 (histórico de re-download sem debitar — já existe listagem, falta só o re-download não cobrar de novo, mas como já não cobra na primeira tela isso é conferir), Épico 6 completo (painel admin de verdade — por ora só endpoints JSON), 4.3/4.4/4.5.
+
+---
+
+*Última atualização: 2026-07-22, Épico 2 (Créditos & Monetização) implementado — branches feature/2.x mergeadas na main.*

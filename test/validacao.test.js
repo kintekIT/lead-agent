@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { iniciarBodySchema, previaBodySchema, sessionIdParamSchema } = require('../src/validation/schemas');
+const { iniciarBodySchema, previaBodySchema, sessionIdParamSchema, compraBodySchema, compraIdParamSchema } = require('../src/validation/schemas');
 const { validar } = require('../src/middleware/validar');
 
 test('iniciarBodySchema aceita um corpo válido e coage quantidade para número', () => {
@@ -41,6 +41,17 @@ test('previaBodySchema aceita corpo válido sem o campo modo', () => {
 test('previaBodySchema rejeita quantidade fora do intervalo 1-1000', () => {
   assert.equal(previaBodySchema.safeParse({ nicho: 'dentista', regiao: 'SP', quantidade: 0 }).success, false);
   assert.equal(previaBodySchema.safeParse({ nicho: 'dentista', regiao: 'SP', quantidade: 1001 }).success, false);
+});
+
+test('compraBodySchema aceita só os pacotes conhecidos', () => {
+  assert.equal(compraBodySchema.safeParse({ pacote: '200' }).success, true);
+  assert.equal(compraBodySchema.safeParse({ pacote: '999' }).success, false);
+  assert.equal(compraBodySchema.safeParse({ pacote: 'muitos' }).success, false);
+});
+
+test('compraIdParamSchema exige um uuid válido', () => {
+  assert.equal(compraIdParamSchema.safeParse({ id: '3fa85f64-5717-4562-b3fc-2c963f66afa6' }).success, true);
+  assert.equal(compraIdParamSchema.safeParse({ id: '../../etc/passwd' }).success, false);
 });
 
 test('sessionIdParamSchema aceita o formato gerado pelo servidor', () => {

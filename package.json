@@ -30,6 +30,7 @@
     "iconv-lite": "latest",
     "node-stream-zip": "latest",
     "playwright": "latest",
+    "qrcode": "^1.5.4",
     "whois": "latest",
     "zod": "^4.4.3"
   }
