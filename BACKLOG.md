@@ -30,28 +30,28 @@ conveniente). A 6.1 é a exceção: tem trabalho de verdade, ver abaixo.
 ### Épico 0 — Fundação técnica Supabase
 - [x] ✅ 0.1 — Criar e configurar o projeto Supabase
 - [x] ✅ 0.2 — Modelagem do banco de usuários e créditos
-- [x] ✅ 0.3 — Middleware de autenticação no Express
+- [x] ✅ 0.3 — Middleware de autenticação no Express — *depende de: 0.1 ✅*
 
 ### Épico 1 — Contas & Acesso
-- [x] ✅ 1.1 — Cadastro com confirmação de email
+- [x] ✅ 1.1 — Cadastro com confirmação de email — *depende de: 0.1 ✅*
 - [x] ✅ 1.2 — Tela de login e logout
 - [x] ✅ 1.3 — Recuperação de senha
-- [x] ✅ 1.4 — Perfis e permissões: free, premium e admin
+- [x] ✅ 1.4 — Perfis e permissões: free, premium e admin — *depende de: 0.2 ✅, 0.3 ✅*
 - [x] ✅ 1.5 — Página "Minha Conta"
 
 ## Fase 2 — Monetização
 
 ### Épico 2 — Créditos & Monetização
-- [x] ✅ 2.1 — Trial: 20 créditos no cadastro
-- [x] ✅ 2.2 — Saldo e extrato de créditos
-- [x] ✅ 2.3 — Débito atômico por lead entregue
-- [x] ✅ 2.4 — Prévia pré-consumo
-- [x] 🟡 2.5 — Página de planos + compra via Pix — **código pronto, falta `PIX_CHAVE`/`PIX_NOME_RECEBEDOR`/`PIX_CIDADE` reais no `.env` pra funcionar de verdade**
-- [x] ✅ 2.6 — Saldo zerado → volta a free
+- [x] ✅ 2.1 — Trial: 20 créditos no cadastro — *depende de: 1.1 ✅, 2.2 ✅*
+- [x] ✅ 2.2 — Saldo e extrato de créditos — *depende de: 0.2 ✅*
+- [x] ✅ 2.3 — Débito atômico por lead entregue — *depende de: 0.2 ✅, 3.1 ✅*
+- [x] ✅ 2.4 — Prévia pré-consumo — *depende de: 3.1 ✅*
+- [x] 🟡 2.5 — Página de planos + compra via Pix — *depende de: 2.2 ✅, 6.3 🟡* — **código pronto, falta `PIX_CHAVE`/`PIX_NOME_RECEBEDOR`/`PIX_CIDADE` reais no `.env` pra funcionar de verdade**
+- [x] ✅ 2.6 — Saldo zerado → volta a free — *depende de: 2.2 ✅*
 
 ### Épico 3 — Motor & Regras de Negócio
-- [x] ✅ 3.1 — Dedup de leads por usuário (janela de 6 meses) — feito junto com 2.3
-- [x] 🟡 3.2 — Histórico de buscas + re-download — listagem existe (`conta.html`), re-download dedicado sem debitar de novo não foi construído como endpoint próprio
+- [x] ✅ 3.1 — Dedup de leads por usuário (janela de 6 meses) — *depende de: 0.2 ✅, 0.3 ✅* — feito junto com 2.3
+- [x] 🟡 3.2 — Histórico de buscas + re-download — *depende de: 0.2 ✅* — listagem existe (`conta.html`), re-download dedicado sem debitar de novo não foi construído como endpoint próprio
 - [x] ✅ 3.3 — Expansão do dicionário de sinônimos CNAE
 - [x] ✅ 3.4 — Qualidade dos resultados (matriz, telefone-lixo, email genérico, colunas extras)
 
@@ -60,36 +60,36 @@ conveniente). A 6.1 é a exceção: tem trabalho de verdade, ver abaixo.
 ### Épico 4 — Segurança
 - [x] ✅ 4.1 — Hardening HTTP básico (helmet, CORS, rate limit)
 - [x] ✅ 4.2 — Validação de entrada (zod)
-- [ ] ⬜ 4.3 — Rate limiting por usuário + antifraude do trial
-- [x] 🟡 4.4 — Segregação de chaves e RLS — RLS e chaves já corretas, falta só o teste explícito de acesso cruzado (usuário A lendo dado do B)
+- [ ] ⬜ 4.3 — Rate limiting por usuário + antifraude do trial — *depende de: 0.3 ✅*
+- [x] 🟡 4.4 — Segregação de chaves e RLS — *depende de: 0.2 ✅* — RLS e chaves já corretas, falta só o teste explícito de acesso cruzado (usuário A lendo dado do B)
 - [x] 🟡 4.5 — Termos de Uso + Política de Privacidade (LGPD) — `termos.html` existe, aceite é registrado no cadastro, mas o texto ainda é placeholder
 
 ### Épico 5 — Observabilidade & Logs
 - [ ] ⬜ 5.1 — Logger estruturado + log de toda requisição
 - [ ] ⬜ 5.2 — Rotação e retenção de logs
 - [ ] ⬜ 5.3 — Alertas de erro e uptime
-- [ ] ⬜ 5.4 — Auditoria de eventos de negócio
+- [ ] ⬜ 5.4 — Auditoria de eventos de negócio — *depende de: 0.2 ✅*
 
 ### Épico 6 — Painel Admin
-- [ ] 🟠 6.1 — Gestão de usuários — **em progresso pelo sócio** na branch `feature/6.1-admin-gestao-usuarios` (remote `kintekit`), `public/admin.html` já com ~300 linhas. Branch baseada num ponto antigo da main (antes do Épico 2 completo) — vai precisar reconciliação manual antes de mergear, igual aconteceu com a `release/kintek`. Não mexer nela sem alinhar com ele primeiro.
-- [ ] ⬜ 6.2 — Créditos manuais (atribuir/estornar) — depende de 5.4 (auditoria), que não existe ainda
-- [x] 🟡 6.3 — Fila de confirmação de compras Pix — só endpoints JSON crus (`/api/admin/compras/pendentes` + `/confirmar`), sem UI nem expiração automática de 48h
-- [ ] ⬜ 6.4 — Métricas do negócio
+- [ ] 🟠 6.1 — Gestão de usuários — *depende de: 0.3 ✅, 1.4 ✅* — **em progresso pelo sócio** na branch `feature/6.1-admin-gestao-usuarios` (remote `kintekit`), `public/admin.html` já com ~300 linhas. Branch baseada num ponto antigo da main (antes do Épico 2 completo) — vai precisar reconciliação manual antes de mergear, igual aconteceu com a `release/kintek`. Não mexer nela sem alinhar com ele primeiro.
+- [ ] ⬜ 6.2 — Créditos manuais (atribuir/estornar) — *depende de: 2.2 ✅, 5.4 ⬜*
+- [x] 🟡 6.3 — Fila de confirmação de compras Pix — *depende de: 2.5 🟡* — só endpoints JSON crus (`/api/admin/compras/pendentes` + `/confirmar`), sem UI nem expiração automática de 48h
+- [ ] ⬜ 6.4 — Métricas do negócio — *depende de: 5.4 ⬜*
 
 ## Fase 4 — Produção
 
 ### Épico 7 — Infraestrutura & Deploy
 - [ ] ⬜ 7.1 — Provisionar VPS com hardening
-- [ ] ⬜ 7.2 — Deploy da aplicação + upload do receita.db
-- [ ] ⬜ 7.3 — Domínio + Caddy + HTTPS
-- [ ] ⬜ 7.4 — CI/CD — deploy automático
+- [ ] ⬜ 7.2 — Deploy da aplicação + upload do receita.db — *depende de: 7.1 ⬜*
+- [ ] ⬜ 7.3 — Domínio + Caddy + HTTPS — *depende de: 7.2 ⬜*
+- [ ] ⬜ 7.4 — CI/CD — deploy automático — *depende de: 7.2 ⬜*
 - [ ] ⬜ 7.5 — Backups e limpeza de arquivos
-- [ ] ⬜ 7.6 — Atualização mensal da base da Receita
+- [ ] ⬜ 7.6 — Atualização mensal da base da Receita — *depende de: 7.2 ⬜*
 
 ### Épico 8 — Frontend do Produto
-- [x] ✅ 8.1 — Fluxo autenticado na interface
-- [x] ✅ 8.2 — Saldo no header + feedback de consumo
-- [x] 🟡 8.3 — Telas de planos, conta e histórico — todas existem, navegação entre elas é básica (sem menu unificado)
+- [x] ✅ 8.1 — Fluxo autenticado na interface — *depende de: 0.1 ✅, 1.1 ✅, 1.2 ✅*
+- [x] ✅ 8.2 — Saldo no header + feedback de consumo — *depende de: 2.2 ✅*
+- [x] 🟡 8.3 — Telas de planos, conta e histórico — *depende de: 1.5 ✅, 3.2 🟡* — todas existem, navegação entre elas é básica (sem menu unificado)
 - [x] 🟡 8.4 — Erros amigáveis e estados vazios — sugestões de nicho e CTA de saldo zero existem; não é sistemático em toda a interface
 
 ---
