@@ -339,6 +339,12 @@ Endpoint `GET /health` (público, sem auth, sem round-trip no banco) pro monitor
 1. Criar conta free em [sentry.io](https://sentry.io), criar um projeto Node/Express, colar o DSN em `SENTRY_DSN` no `.env`.
 2. Criar conta free no [UptimeRobot](https://uptimerobot.com) (ou similar) e cadastrar um monitor HTTP apontando pra `<url-pública>/health`, com alerta por email/Telegram — só existe URL pública depois do Épico 7 (deploy); em dev, dá pra testar localmente mas não faz sentido monitorar `localhost`.
 
+**5.4 — Auditoria de eventos de negócio:** migration `20260723160000_auditoria_eventos.sql` cria `events` (ator/ação/alvo/metadados, RLS: só admin lê, escrita só service_role) + `src/auditoria.js` (`registrarEvento()`, nunca deixa a falha de auditoria derrubar a ação auditada — só loga o erro via pino). Ligado em `/api/admin/compras/:id/confirmar` (o único ajuste manual de crédito que já existe em código). `GET /api/admin/eventos` lista os últimos 50 (sem UI, mesmo padrão cru dos outros endpoints admin até o Épico 6 existir de verdade).
+
+**Escopo deliberadamente restrito:** o backlog original pede uma trilha de "logins, buscas, débitos, compras e ajustes manuais" — mas buscas (`searches`), débitos/compras (`credit_ledger`/`purchases`) já são estruturados e consultáveis nessas tabelas próprias; duplicar tudo isso também em `events` seria redundância sem ganho real pro tamanho atual do projeto. Fiquei só com o que essas tabelas NÃO cobrem: ações administrativas com o "quem fez e por quê". Se o volume de admins/ações crescer a ponto de precisar de um feed unificado de auditoria cruzando tudo, revisitar.
+
+**Ainda falta pra fechar de verdade:** aplicar a migration (nenhuma automatizada nesta sessão tem credencial de banco) e validar `registrarEvento`/`GET /api/admin/eventos` contra o banco real — precisa de uma conta com `role = 'admin'`, e nenhuma das contas de teste atuais é admin ainda (`update public.profiles set role = 'admin' where email = '...'`, documentado no `supabase/README.md`).
+
 ---
 
-*Última atualização: 2026-07-23 — Épico 5 em andamento (5.1-5.3 concluídas); ver seção 13.*
+*Última atualização: 2026-07-23 — Épico 5 concluído (5.1-5.4); ver seção 13.*

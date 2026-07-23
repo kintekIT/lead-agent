@@ -19,6 +19,7 @@ const { tamanhoPool } = require('./config/pool-dedup');
 const { PACOTES } = require('./config/pacotes-creditos');
 const { gerarPayloadPix } = require('./utils/pix');
 const QRCode = require('qrcode');
+const { registrarEvento } = require('./auditoria');
 
 const PIX_CHAVE  = process.env.PIX_CHAVE || '';
 const PIX_NOME   = process.env.PIX_NOME_RECEBEDOR || 'LEAD AGENT';
@@ -315,7 +316,22 @@ app.get('/api/admin/compras/pendentes', exigirAdmin, async (_req, res) => {
 app.post('/api/admin/compras/:id/confirmar', exigirAdmin, validar(compraIdParamSchema, 'params'), async (req, res) => {
   const { error } = await supabaseAdmin.rpc('confirmar_compra', { p_purchase_id: req.params.id });
   if (error) return res.status(400).json({ erro: error.message });
+
+  // Auditoria (história 5.4): todo ajuste manual de crédito registra qual admin fez.
+  registrarEvento({ atorId: req.usuario.id, acao: 'confirmar_compra_pix', alvoTipo: 'purchase', alvoId: req.params.id });
+
   res.json({ ok: true });
+});
+
+/* ── GET /api/admin/eventos ── trilha de auditoria (história 5.4) — sem UI ainda, só JSON */
+app.get('/api/admin/eventos', exigirAdmin, async (_req, res) => {
+  const { data, error } = await supabaseAdmin
+    .from('events')
+    .select('id, ator_id, acao, alvo_tipo, alvo_id, metadados, criado_em')
+    .order('criado_em', { ascending: false })
+    .limit(50);
+  if (error) return res.status(500).json({ erro: error.message });
+  res.json(data);
 });
 
 // Reporta pro Sentry antes do handler final (história 5.3) — só registra
