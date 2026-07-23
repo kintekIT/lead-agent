@@ -372,4 +372,16 @@ A `feature/6.1-admin-gestao-usuarios` (ver seção 12 — era a branch com traba
 
 ---
 
-*Última atualização: 2026-07-23 — histórias 5.4 e 6.1 mergeadas na main; ver seções 13 e 14.*
+## 15. Épico 6 — história 6.3: fila de confirmação Pix (2026-07-23)
+
+Construída em cima do `admin.html` que a 6.1 acabou de trazer pra main (branch `feature/6.3-admin-fila-pix`, era uma reserva de nome vazia — só precisou dar fast-forward até a main atual, sem reconciliação).
+
+**Backend** (`src/server.js`): `expirarComprasPendentes()` — um `UPDATE purchases SET status='expirado' WHERE status='pendente' AND criado_em < now() - 48h`, best-effort (nunca derruba a leitura se falhar), chamado antes de `GET /api/compras`, `GET /api/compras/:id` e `GET /api/admin/compras/pendentes`. Decisão de design: expiração **lazy** (checada a cada leitura) em vez de um cron/job separado — não precisa de infraestrutura nova, e o resultado é sempre consistente com o que a tela está prestes a mostrar. `GET /api/admin/compras/pendentes` ganhou o embed `profiles(email)` (join via a FK `purchases.user_id → profiles.id` que já existia desde a migration 0001) pra mostrar quem comprou, não só o `user_id` cru.
+
+**Frontend** (`public/admin.html`): nova seção "Compras Pix pendentes" no topo do painel — tabela com email, pacote, valor (`fmtBRL`), data da compra e prazo até expirar (`fmtPrazo`, fica laranja quando faltam menos de 6h), botão "Confirmar" que chama `POST /api/admin/compras/:id/confirmar` e recarrega a fila.
+
+**Validado contra o banco real** (service_role, sem precisar de token de sessão): a query com o embed `profiles(email)` e o `UPDATE` de expiração rodaram sem erro contra o Supabase de verdade. **Não testado ainda**: o fluxo completo autenticado (não existe compra pendente nem conta admin no banco agora pra testar via HTTP) — mesma pendência de infraestrutura de teste da história 5.4 (seção 13). Não criei linha de teste no banco pra manter os dados reais limpos.
+
+---
+
+*Última atualização: 2026-07-23 — histórias 5.4 e 6.1 na main; 6.3 pronta em `feature/6.3-admin-fila-pix`, aguardando merge; ver seções 13, 14 e 15.*

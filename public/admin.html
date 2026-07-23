@@ -80,6 +80,7 @@
     .msg { font-size:12.5px; padding:8px 0; }
     .msg.erro { color:var(--red); }
     .msg.sucesso { color:var(--green); }
+    .prazo-alerta { color:var(--orange); font-weight:600; }
     @media (max-width:640px){ .detalhe-grid { grid-template-columns:1fr; } .app { padding:18px 14px 40px; } }
   </style>
 </head>
@@ -95,6 +96,12 @@
       <button class="pill" onclick="sair()">Sair</button>
     </div>
   </header>
+
+  <!-- Fila de confirmação de compras Pix (história 6.3) -->
+  <section class="card">
+    <div class="card-label">Compras Pix pendentes</div>
+    <div id="filaPixWrap"><div class="vazio">Carregando…</div></div>
+  </section>
 
   <!-- Lista + busca (história 6.1) -->
   <section class="card">
@@ -150,6 +157,18 @@
 
   const MOTIVOS = { trial:'Créditos de teste', compra:'Compra de pacote', consumo:'Geração de leads', estorno:'Estorno', ajuste:'Ajuste' };
   const STATUS_BUSCA = { executando:'Executando…', concluida:'Concluída', erro:'Erro' };
+  const fmtBRL = (centavos) => (centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  // Prazo de expiração automática (história 6.3) — só pra exibição; quem
+  // decide de verdade é o backend (expirarComprasPendentes em server.js).
+  const COMPRA_EXPIRA_HORAS = 48;
+  function fmtPrazo(criadoEm) {
+    const restanteMs = new Date(criadoEm).getTime() + COMPRA_EXPIRA_HORAS * 3600 * 1000 - Date.now();
+    if (restanteMs <= 0) return { texto: 'expirando…', alerta: true };
+    const horas = Math.floor(restanteMs / 3600000);
+    const min   = Math.floor((restanteMs % 3600000) / 60000);
+    return { texto: `${horas}h${String(min).padStart(2, '0')}min`, alerta: horas < 6 };
+  }
 
   let pagina = 1;
   let totalPaginas = 1;
@@ -286,6 +305,41 @@
     el.className = `msg ${ok ? 'sucesso' : 'erro'}`;
   }
 
+  async function carregarFilaPix() {
+    const res = await authFetch('/api/admin/compras/pendentes');
+    if (!res.ok) {
+      document.getElementById('filaPixWrap').innerHTML = `<div class="vazio">Falha ao carregar a fila de compras.</div>`;
+      return;
+    }
+    const compras = await res.json();
+
+    document.getElementById('filaPixWrap').innerHTML = compras.length
+      ? `<table><thead><tr><th>Email</th><th>Pacote</th><th>Valor</th><th>Criada em</th><th>Expira em</th><th></th></tr></thead><tbody>` +
+        compras.map(c => {
+          const prazo = fmtPrazo(c.criado_em);
+          return `<tr>
+            <td>${esc(c.email ?? '—')}</td>
+            <td>${c.creditos} créditos</td>
+            <td>${fmtBRL(c.valor_centavos)}</td>
+            <td class="muted">${fmtDataHora(c.criado_em)}</td>
+            <td class="${prazo.alerta ? 'prazo-alerta' : 'muted'}">${prazo.texto}</td>
+            <td><button class="pill sucesso" onclick="confirmarCompra('${c.id}')">Confirmar</button></td>
+          </tr>`;
+        }).join('') + `</tbody></table>`
+      : `<div class="vazio">Nenhuma compra aguardando confirmação.</div>`;
+  }
+
+  async function confirmarCompra(id) {
+    if (!confirm('Confirmar o pagamento? Os créditos são liberados pro usuário na hora.')) return;
+    const res = await authFetch(`/api/admin/compras/${id}/confirmar`, { method: 'POST' });
+    if (!res.ok) {
+      const corpo = await res.json().catch(() => ({}));
+      alert(corpo?.erro || 'Falha ao confirmar a compra.');
+      return;
+    }
+    carregarFilaPix();
+  }
+
   (async () => {
     const session = await exigirSessao();
     if (!session) return;
@@ -295,6 +349,7 @@
     try { me = await (await authFetch('/api/me')).json(); } catch { window.location.href = '/'; return; }
     if (me.role !== 'admin') { window.location.href = '/'; return; }
 
+    carregarFilaPix();
     carregarLista();
   })();
 </script>

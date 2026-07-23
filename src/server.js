@@ -29,6 +29,21 @@ const PIX_CHAVE  = process.env.PIX_CHAVE || '';
 const PIX_NOME   = process.env.PIX_NOME_RECEBEDOR || 'LEAD AGENT';
 const PIX_CIDADE = process.env.PIX_CIDADE || 'SAO PAULO';
 
+const COMPRA_EXPIRA_HORAS = 48;
+
+/* Expira sozinha (história 6.3) qualquer compra pendente há mais de 48h —
+   chamado antes de qualquer leitura de compras (usuário ou admin), em vez
+   de um cron separado: mais simples e sempre consistente com o que a
+   tela está prestes a mostrar. Best-effort: nunca derruba a leitura. */
+async function expirarComprasPendentes() {
+  const corte = new Date(Date.now() - COMPRA_EXPIRA_HORAS * 60 * 60 * 1000).toISOString();
+  try {
+    await supabaseAdmin.from('purchases').update({ status: 'expirado' }).eq('status', 'pendente').lt('criado_em', corte);
+  } catch (err) {
+    logger.warn({ err }, 'falha ao expirar compras pendentes (não bloqueia a leitura)');
+  }
+}
+
 const app = express();
 app.use(logRequisicao); // primeiro middleware (história 5.1): registra até requisição barrada por rate limit/auth
 app.use(helmetMiddleware);
@@ -277,6 +292,7 @@ app.post('/api/compras', validar(compraBodySchema, 'body'), async (req, res) => 
 
 /* ── GET /api/compras ── minhas compras (história 2.5) */
 app.get('/api/compras', async (req, res) => {
+  await expirarComprasPendentes();
   const { data, error } = await supabaseAdmin
     .from('purchases')
     .select('id, pacote, creditos, valor_centavos, status, criado_em, pago_em')
@@ -289,6 +305,7 @@ app.get('/api/compras', async (req, res) => {
 
 /* ── GET /api/compras/:id ── status de uma compra específica, pro polling da tela de planos ── */
 app.get('/api/compras/:id', validar(compraIdParamSchema, 'params'), async (req, res) => {
+  await expirarComprasPendentes();
   const { data, error } = await supabaseAdmin
     .from('purchases')
     .select('id, pacote, creditos, status, criado_em, pago_em')
@@ -390,16 +407,18 @@ app.patch(
 );
 
 // Confirmação de compras Pix — etapa 1 da história 2.5 (admin confirma
-// manualmente). A fila/UI bonita no painel admin é a história 6.3; por ora
-// são só endpoints JSON, chamáveis com o token de um usuário role=admin.
+// manualmente). Fila/UI no painel admin + expiração automática de 48h
+// (expirarComprasPendentes, acima) são a história 6.3.
 app.get('/api/admin/compras/pendentes', exigirAdmin, async (_req, res) => {
+  await expirarComprasPendentes();
   const { data, error } = await supabaseAdmin
     .from('purchases')
-    .select('id, user_id, pacote, creditos, valor_centavos, criado_em')
+    .select('id, user_id, pacote, creditos, valor_centavos, criado_em, profiles(email)')
     .eq('status', 'pendente')
     .order('criado_em', { ascending: true });
   if (error) return res.status(500).json({ erro: error.message });
-  res.json(data);
+
+  res.json(data.map(({ profiles, ...compra }) => ({ ...compra, email: profiles?.email ?? null })));
 });
 
 app.post('/api/admin/compras/:id/confirmar', exigirAdmin, validar(compraIdParamSchema, 'params'), async (req, res) => {
