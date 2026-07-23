@@ -9,6 +9,7 @@ const { supabaseAdmin, configurado } = require('./auth/supabase');
 const { helmetMiddleware, corsMiddleware, limiteApi } = require('./middleware/seguranca');
 const { validar } = require('./middleware/validar');
 const { iniciarBodySchema, sessionIdParamSchema } = require('./validation/schemas');
+const { tamanhoPool } = require('./config/pool-dedup');
 
 const app = express();
 app.use(helmetMiddleware);
@@ -79,9 +80,8 @@ app.post('/api/iniciar', validar(iniciarBodySchema, 'body'), async (req, res) =>
   if (saldo <= 0) {
     return res.status(403).json({ erro: 'Você está sem créditos. Compre um pacote para gerar leads.', saldo });
   }
-  if (qty > saldo) {
-    return res.status(403).json({ erro: `Saldo insuficiente: você tem ${saldo} crédito(s) e pediu ${qty} lead(s).`, saldo });
-  }
+  // Não bloqueia mais qty > saldo (história 2.3): entrega até o limite do
+  // saldo e informa, em vez de recusar a busca inteira.
 
   // Registra a busca no histórico (tabela searches)
   let searchId = null;
@@ -117,7 +117,31 @@ app.post('/api/iniciar', validar(iniciarBodySchema, 'body'), async (req, res) =>
     supabaseAdmin.from('searches').update(campos).eq('id', searchId).then(() => {}, () => {});
   };
 
-  executor(nicho, regiao, qty, emit)
+  // Só o motor Receita Federal tem débito atômico + dedup de 6 meses
+  // (histórias 2.3/3.1) — os motores legados (agente/RPA) seguem ocultos e
+  // sem cobrança, como já era antes.
+  const aplicarCota = modo === 'receita'
+    ? async (leadsPool) => {
+        const { data: aceitos, error } = await supabaseAdmin.rpc('entregar_leads', {
+          p_user_id:   req.usuario.id,
+          p_search_id: searchId,
+          p_cnpjs:     leadsPool.map(l => l.cnpj),
+          p_limite:    qty,
+        });
+        if (error) throw new Error(`Falha ao registrar entrega dos leads: ${error.message}`);
+
+        const aceitosSet = new Set(aceitos || []);
+        const filtrados  = leadsPool.filter(l => aceitosSet.has(l.cnpj));
+        if (filtrados.length < qty) {
+          emit('log', { mensagem: `Entregue${filtrados.length === 1 ? '' : 's'} ${filtrados.length} de ${qty} lead(s) pedido(s) — saldo insuficiente ou sem leads novos suficientes (cada lead não se repete por 6 meses).` });
+        }
+        return filtrados;
+      }
+    : null;
+
+  const quantidadeBusca = modo === 'receita' ? tamanhoPool(qty) : qty;
+
+  executor(nicho, regiao, quantidadeBusca, emit, aplicarCota)
     .then(resultado => {
       const sessao = sessoes.get(sessionId);
       if (sessao && resultado?.arquivo) sessao.arquivo = resultado.arquivo;

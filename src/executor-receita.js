@@ -1,23 +1,34 @@
 const { buscarLeadsReceita, formatarEndereco } = require('./tools/receita');
 const { criarGerenciadorLeads }                = require('./tools/leads');
 
-async function executarReceita(nicho, regiao, quantidade, onEvento = null) {
+// `quantidadeBusca` é o tamanho do pool pedido ao banco — pode ser maior que
+// o que o usuário efetivamente vai receber, para sobrar candidatos depois do
+// dedup (história 3.1). `aplicarCota`, se passado, recebe o pool bruto e
+// devolve só os leads que realmente serão entregues/cobrados (história 2.3);
+// sem ele, todo o pool é entregue (comportamento antigo, sem crédito/dedup).
+async function executarReceita(nicho, regiao, quantidadeBusca, onEvento = null, aplicarCota = null) {
   const emit = (tipo, dados) => { if (onEvento) onEvento(tipo, dados); };
 
-  console.log(`\n🗂️  Iniciando motor Receita Federal — Nicho: ${nicho} | Região: ${regiao} | Qtd: ${quantidade}\n`);
-  emit('inicio', { nicho, regiao, quantidade });
+  console.log(`\n🗂️  Iniciando motor Receita Federal — Nicho: ${nicho} | Região: ${regiao} | Qtd: ${quantidadeBusca}\n`);
+  emit('inicio', { nicho, regiao, quantidade: quantidadeBusca });
   emit('log', { mensagem: 'Consultando base de dados da Receita Federal...' });
 
-  const resultado = buscarLeadsReceita(nicho, regiao, quantidade);
+  const resultado = buscarLeadsReceita(nicho, regiao, quantidadeBusca);
 
   if (!resultado.sucesso) {
     emit('log', { mensagem: resultado.mensagem });
     return { sucesso: false, mensagem: resultado.mensagem };
   }
 
-  const { leads, cnaesUsados, avisos } = resultado;
+  const { cnaesUsados, avisos } = resultado;
+  let leads = resultado.leads;
   emit('log', { mensagem: `${leads.length} estabelecimento(s) encontrado(s) — ${cnaesUsados} CNAE(s) mapeado(s)` });
   for (const aviso of avisos || []) emit('log', { mensagem: `⚠️ ${aviso}` });
+
+  if (aplicarCota) {
+    leads = await aplicarCota(leads);
+    emit('log', { mensagem: `${leads.length} lead(s) novo(s) — dentro do saldo e ainda não entregues nos últimos 6 meses` });
+  }
 
   const { salvarLead, finalizarLeads } = criarGerenciadorLeads();
 
