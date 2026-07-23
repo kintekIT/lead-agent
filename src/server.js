@@ -1,4 +1,7 @@
 require('dotenv').config();
+const { iniciarSentry, sentryAtivo, Sentry } = require('./utils/sentry');
+iniciarSentry(); // história 5.3 — antes de tudo, pra capturar erro em qualquer módulo carregado depois
+
 const express = require('express');
 const path    = require('path');
 const { executarAgente }  = require('./agent');
@@ -38,6 +41,12 @@ app.get('/config.js', (_req, res) => {
       SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
     })};`
   );
+});
+
+// Health check (história 5.3) — pro monitor de uptime externo (ex.: UptimeRobot)
+// pingar; rápido, sem autenticação, sem round-trip no banco.
+app.get('/health', (_req, res) => {
+  res.json({ ok: true, uptimeSegundos: process.uptime() });
 });
 
 // supabase-js servido localmente (sem depender de CDN)
@@ -309,6 +318,10 @@ app.post('/api/admin/compras/:id/confirmar', exigirAdmin, validar(compraIdParamS
   res.json({ ok: true });
 });
 
+// Reporta pro Sentry antes do handler final (história 5.3) — só registra
+// middleware se o Sentry estiver ativo (com SENTRY_DSN configurada).
+if (sentryAtivo()) Sentry.setupExpressErrorHandler(app);
+
 /* ── Handler de erro global (história 5.1) — pega qualquer exceção não
    tratada num handler async (Express 5 encaminha rejeições automaticamente),
    loga com stack trace e nunca vaza detalhe interno pro cliente. ── */
@@ -317,6 +330,20 @@ app.use((err, req, res, _next) => {
   if (res.headersSent) return;
   res.status(500).json({ erro: 'Erro interno no servidor.' });
 });
+
+/* ── Exceções fora do ciclo de requisição (história 5.3) ── */
+process.on('unhandledRejection', (motivo) => {
+  logger.error({ err: motivo }, 'promise rejeitada sem tratamento');
+});
+if (!sentryAtivo()) {
+  // Com Sentry ativo, a integração dele já loga+reporta+encerra o processo —
+  // registrar outro handler aqui competiria pelo process.exit() e poderia
+  // matar o processo antes do Sentry conseguir enviar o evento.
+  process.on('uncaughtException', (err) => {
+    logger.fatal({ err }, 'exceção não capturada — encerrando processo');
+    process.exit(1);
+  });
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
