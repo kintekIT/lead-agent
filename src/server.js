@@ -9,6 +9,8 @@ const { autenticar, exigirAdmin, saldoCreditos } = require('./auth/middleware');
 const { supabaseAdmin, configurado } = require('./auth/supabase');
 const { helmetMiddleware, corsMiddleware, limiteApi } = require('./middleware/seguranca');
 const { validar } = require('./middleware/validar');
+const { logRequisicao } = require('./middleware/log-requisicao');
+const { logger } = require('./utils/logger');
 const {
   iniciarBodySchema, previaBodySchema, sessionIdParamSchema,
   adminListQuerySchema, adminUsuarioIdParamSchema, adminPapelBodySchema,
@@ -24,6 +26,7 @@ const PIX_NOME   = process.env.PIX_NOME_RECEBEDOR || 'LEAD AGENT';
 const PIX_CIDADE = process.env.PIX_CIDADE || 'SAO PAULO';
 
 const app = express();
+app.use(logRequisicao); // primeiro middleware (história 5.1): registra até requisição barrada por rate limit/auth
 app.use(helmetMiddleware);
 app.use(corsMiddleware);
 app.use(express.json({ limit: '10kb' }));
@@ -395,10 +398,19 @@ app.post('/api/admin/compras/:id/confirmar', exigirAdmin, validar(compraIdParamS
   res.json({ ok: true });
 });
 
+/* ── Handler de erro global (história 5.1) — pega qualquer exceção não
+   tratada num handler async (Express 5 encaminha rejeições automaticamente),
+   loga com stack trace e nunca vaza detalhe interno pro cliente. ── */
+app.use((err, req, res, _next) => {
+  logger.error({ err, rota: req.route?.path ?? req.originalUrl }, 'erro não tratado');
+  if (res.headersSent) return;
+  res.status(500).json({ erro: 'Erro interno no servidor.' });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`\n🚀 Interface web disponível em: http://localhost:${PORT}\n`);
+  logger.info({ port: PORT }, `Interface web disponível em http://localhost:${PORT}`);
   if (!configurado) {
-    console.warn('⚠️  SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY ausentes no .env — as rotas /api responderão 503. Veja supabase/README.md.');
+    logger.warn('SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY ausentes no .env — as rotas /api responderão 503. Veja supabase/README.md.');
   }
 });

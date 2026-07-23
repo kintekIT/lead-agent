@@ -47,11 +47,21 @@ Banco: Supabase (Auth + Postgres). Migrations em `supabase/migrations/*.sql`, ap
 - Dois remotes: `kintekit` (kintekIT/lead-agent — **repositório principal atual**) e `origin` (Levartosky/lead-agent — **não dar push aqui até o usuário pedir explicitamente**, mesmo que pareça o passo natural depois de terminar algo).
 - `main` local rastreia `kintekit/main`.
 - Uma branch por história: `feature/{épico}.{história}-{nome-curto}`, criada a partir da `main` atualizada — nunca empilhar uma história em cima de outra ainda não mergeada (isso já causou um retrabalho de reconciliação grande, ver `CONTEXTO.md` seção sobre a `release/kintek`).
-- **Antes de criar uma branch nova, sempre rodar `git fetch kintekit --prune` e checar `git branch -a | grep -i "<número>"`** — o sócio costuma pré-criar (e às vezes já trabalhar de verdade em) branches pra histórias futuras. Branch vazia: reaproveitar (`git checkout -b feature/X kintekit/feature/X`). Branch com trabalho real:
+- **Antes de criar uma branch nova, sempre rodar `git fetch kintekit --prune` e checar `git branch -a | grep -i "<número>"`** — o sócio costuma pré-criar (e às vezes já trabalhar de verdade em) branches pra histórias futuras. Branch vazia (`git diff main...kintekit/feature/X --stat` sem saída): geralmente presa num commit antigo da main — reaproveitar o nome mas atualizar o conteúdo: `git checkout -b feature/X kintekit/feature/X && git reset --hard main` (só depois de confirmar com `git log --oneline main..kintekit/feature/X` que não há nenhum commit único pra perder). Branch com trabalho real:
   - Se **o usuário pediu explicitamente** pra continuar aquela história/branch: é o trabalho dele — reaproveitar e continuar desenvolvendo por cima normalmente, sem parar pra confirmar. Reconciliar com a `main` (se estiver desatualizada) só quando pedido, não por padrão.
   - Se o agente **descobriu a branch sozinho**, sem o usuário ter mencionado: parar e avisar antes de tocar em qualquer coisa — pode ser o sócio trabalhando sem o usuário saber. Nunca mergear, sobrescrever, ou abrir uma segunda branch concorrente pra mesma história sem esse aviso primeiro.
 - Fluxo por história: branch → implementa → `node --test` tem que fechar 100% → commit descritivo em português → `git checkout main` → `git merge --no-ff` → `git push kintekit main` → `git push kintekit <branch>`.
 - Depois de qualquer história concluída: atualizar `BACKLOG.md` (marcar status) e acrescentar uma entrada datada em `CONTEXTO.md`. Ver skill `nova-historia` pro passo a passo completo.
+
+### Pedido por um épico inteiro (ex.: "continua o épico 5")
+
+Não é uma história só — é uma sequência. O usuário quer o fluxo repetido, história por história, sem parar pra pedir confirmação entre elas:
+
+1. Ler `BACKLOG.md`, listar as histórias daquele épico que ainda não estão ✅.
+2. Ordenar pelas dependências anotadas ali (*depende de: X* — inclusive dependências de outros épicos) — só entra numa história depois que todas as dela já estiverem ✅.
+3. Pra cada história da lista, nessa ordem: aplicar o fluxo da skill `nova-historia` inteiro (branch → código → testes → commit → merge na `main` → marca ✅ no `BACKLOG.md`) **e só então seguir pra próxima** — cria, desenvolve, commita, próxima; desenvolve, commita, próxima.
+4. Só parar no meio da sequência se travar em algo que só o usuário resolve de verdade (migration que precisa ser colada manualmente no Supabase antes de continuar, decisão de negócio, uma história com dependência de outro épico ainda não pronta, ou uma branch de outra pessoa com trabalho real não mencionado pelo usuário). Travar não é "pedir permissão pra continuar" — é avisar o motivo específico e, se possível, seguir pras histórias seguintes que não dependem daquele bloqueio.
+5. No final da sequência (ou ao travar), reportar tudo de uma vez: o que foi concluído, o que ficou bloqueado e por quê, e o que falta do épico.
 
 ## Como testar de verdade (não só ler o código)
 

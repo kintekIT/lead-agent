@@ -328,4 +328,16 @@ Também criado `BACKLOG.md` na raiz — checklist estruturado das 41 histórias 
 
 ---
 
-*Última atualização: 2026-07-23 — agente/skills do Claude Code e BACKLOG.md criados; ver seção 12.*
+## 13. Épico 5 — Observabilidade & Logs (em andamento, 2026-07-23)
+
+Pedido pelo mecanismo do agente ("continua o épico 5") — histórias sendo feitas em sequência, uma branch por vez, sem parar entre elas.
+
+**5.1 — Logger estruturado + log de toda requisição:** `src/utils/logger.js` (pino, `criarLogger(destino?)` — destino só é usado nos testes, pra capturar a saída em memória) + `src/middleware/log-requisicao.js` (pino-http, montado como o **primeiro** middleware do `server.js` — captura até requisição barrada por rate limit/CORS/auth). Cada linha de log tem request-id (também devolvido no header `X-Request-Id`), `userId` (lido de `req.usuario.id`, preenchido depois que a auth roda — funciona porque o log só é escrito quando a resposta termina, não quando o middleware é montado), rota e status/latência automáticos do pino-http. Nível vira `warn` em 4xx e `error` em 5xx (`customLogLevel`). Redação: `authorization`, `cookie`, `password`/`senha`/`token` em qualquer profundidade do objeto nunca aparecem em texto puro — testado de verdade rodando o servidor e conferindo o JSON de saída, não só lendo o código.
+
+Também: handler de erro global no fim do `server.js` (Express 5 encaminha rejeições de handlers `async` automaticamente) — loga com stack trace e nunca deixa vazar detalhe interno pro cliente (responde só `{erro: 'Erro interno no servidor.'}`). `console.log` de `server.js`/`executor-receita.js` migrados pro logger (por-lead fica em `debug`, o resto em `info`/`warn` — os motores legados Agente IA/RPA não foram mexidos, ocultos e fora do escopo).
+
+**Armadilha encontrada (não é do pino, é do ambiente):** ao reaproveitar uma branch vazia pré-criada, ela ficava presa num commit antigo da main — corrigido na skill/agente pra sempre resetar pro HEAD atual depois de confirmar que não há commit próprio pra perder (ver seção 12). Além disso, `npm install <pacote>` seguido de `git reset --hard` sem commitar o `package.json` no meio perde a dependência instalada — aconteceu com `pino`/`pino-http` nesta mesma história, corrigido reinstalando antes de seguir.
+
+---
+
+*Última atualização: 2026-07-23 — Épico 5 em andamento (5.1 concluída); ver seção 13.*
