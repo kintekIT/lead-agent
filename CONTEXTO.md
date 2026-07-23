@@ -302,4 +302,17 @@ Todas as 6 histórias do Épico 2 (mais a 3.1, dedup, que é pré-requisito téc
 
 ---
 
-*Última atualização: 2026-07-22, Épico 2 (Créditos & Monetização) implementado — branches feature/2.x mergeadas na main.*
+## 12. Agente e skills do Claude Code para este projeto (2026-07-23)
+
+Criado `.claude/agents/lead-agent-dev.md` — um subagente do Claude Code com toda a arquitetura, convenções e regras de negócio deste projeto no system prompt (motores, schema Supabase, padrões de migration/SQL, fluxo de git por história, como testar de verdade). Junto, duas skills:
+
+- `.claude/skills/nova-historia/SKILL.md` — proceduraliza o fluxo completo de implementar uma história do backlog (branch → migration → código → testes → merge → docs).
+- `.claude/skills/validar-migration/SKILL.md` — proceduraliza como testar uma função Postgres nova contra o banco real (técnica do token via magic link, checklist de dedup/concorrência).
+
+Também criado `BACKLOG.md` na raiz — checklist estruturado das 41 histórias dos 9 épicos com status real (✅/🟡/⬜), que é a fonte de verdade sobre progresso; este `CONTEXTO.md` continua sendo o changelog narrativo do *porquê*.
+
+**Por que desse jeito:** tudo isso são arquivos versionados no git — `git push`/`git pull`/`git merge` já bastam pra compartilhar com o sócio e manter os dois em sincronia, sem precisar de nenhuma ferramenta nova. O agente e as skills são descobertos automaticamente pelo Claude Code assim que alguém abre este repo (não precisa registrar em lugar nenhum).
+
+---
+
+*Última atualização: 2026-07-23 — agente/skills do Claude Code e BACKLOG.md criados; ver seção 12.*
