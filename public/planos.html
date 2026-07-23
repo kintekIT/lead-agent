@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Planos — Lead Agent AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#07090F; --bg3:#161B24; --card:rgba(22,27,36,.85);
+      --border:rgba(255,255,255,.07); --border2:rgba(255,255,255,.13);
+      --blue:#4F8EF7; --blue-dark:#2F6FE8; --green:#34D399; --orange:#FBBF24; --purple:#A78BFA;
+      --text:#E8EEF6; --text2:#8892A0; --text3:#3D4550;
+      --font:'Inter',system-ui,sans-serif;
+      --shadow:0 0 0 1px rgba(255,255,255,.05), 0 12px 40px rgba(0,0,0,.5);
+    }
+    html, body { min-height:100%; font-family:var(--font); background:var(--bg); color:var(--text); font-size:14px; line-height:1.5; }
+    body::before {
+      content:''; position:fixed; inset:0; pointer-events:none;
+      background:radial-gradient(ellipse 90% 55% at 50% -10%, rgba(79,142,247,.09), transparent 60%);
+    }
+    .app { position:relative; z-index:1; max-width:920px; margin:0 auto; padding:28px 24px 60px; display:flex; flex-direction:column; gap:16px; }
+    .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .brand-icon {
+      width:40px; height:40px; border-radius:11px;
+      background:linear-gradient(135deg,var(--blue-dark),var(--purple));
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 0 24px rgba(79,142,247,.35); font-size:20px;
+    }
+    .brand h1 { font-size:17px; font-weight:800; letter-spacing:-.3px; }
+    .pill {
+      display:inline-flex; align-items:center; gap:7px; padding:8px 16px;
+      background:var(--bg3); border:1px solid var(--border); border-radius:100px;
+      font-size:12.5px; font-weight:500; color:var(--text2); cursor:pointer;
+      text-decoration:none; font-family:var(--font); transition:all .18s;
+    }
+    .pill:hover { color:var(--text); border-color:var(--border2); }
+    .lede { color:var(--text2); font-size:13px; max-width:52ch; }
+
+    .pacotes { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; }
+    .pacote {
+      background:var(--card); border:1px solid var(--border); border-radius:14px;
+      backdrop-filter:blur(16px); box-shadow:var(--shadow); padding:22px 20px;
+      display:flex; flex-direction:column; gap:14px; align-items:center; text-align:center;
+    }
+    .pacote .creditos { font-size:30px; font-weight:800; color:var(--blue); letter-spacing:-1px; }
+    .pacote .creditos small { display:block; font-size:11px; font-weight:600; color:var(--text2); letter-spacing:.5px; text-transform:uppercase; margin-top:2px; }
+    .pacote .preco { font-size:19px; font-weight:700; }
+    .pacote .preco small { font-size:11px; color:var(--text2); font-weight:500; }
+    .btn-comprar {
+      width:100%; height:40px; border:none; border-radius:8px; cursor:pointer;
+      background:linear-gradient(135deg, var(--blue-dark) 0%, var(--purple) 100%);
+      color:#fff; font-family:var(--font); font-size:13.5px; font-weight:700;
+    }
+    .btn-comprar:hover { opacity:.9; }
+    .btn-comprar:disabled { opacity:.4; cursor:not-allowed; }
+
+    .card {
+      background:var(--card); border:1px solid var(--border); border-radius:12px;
+      backdrop-filter:blur(16px); box-shadow:var(--shadow); padding:22px 26px;
+      display:none; flex-direction:column; gap:14px; align-items:center; text-align:center;
+    }
+    .card.show { display:flex; }
+    .qr-wrap img { width:220px; height:220px; border-radius:10px; background:#fff; padding:10px; }
+    .copia-cola {
+      width:100%; max-width:480px; background:var(--bg3); border:1px solid var(--border);
+      border-radius:8px; padding:10px 12px; font-family:monospace; font-size:11px;
+      word-break:break-all; color:var(--text2);
+    }
+    .btn-copiar {
+      padding:8px 18px; border-radius:8px; border:1px solid var(--border2);
+      background:var(--bg3); color:var(--text); font-family:var(--font); font-size:12.5px;
+      font-weight:600; cursor:pointer;
+    }
+    .btn-copiar:hover { border-color:var(--blue); }
+    .status-aguardando { color:var(--orange); font-size:13px; font-weight:600; }
+    .status-pago { color:var(--green); font-size:16px; font-weight:700; }
+    .vazio { color:var(--text3); font-size:12.5px; }
+    @media (max-width:640px){ .pacotes { grid-template-columns:1fr; } .app { padding:18px 14px 40px; } }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <h1>Planos</h1>
+    </div>
+    <div class="header-actions" style="display:flex; gap:10px">
+      <a class="pill" href="/">← Voltar ao app</a>
+      <a class="pill" href="/conta.html">Minha conta</a>
+    </div>
+  </header>
+
+  <p class="lede">1 crédito = 1 lead entregue. Escolha um pacote, pague via Pix e o saldo é liberado assim que o pagamento é confirmado.</p>
+
+  <section class="pacotes" id="pacotesWrap">
+    <div class="vazio">Carregando pacotes…</div>
+  </section>
+
+  <!-- Pagamento Pix da compra em andamento -->
+  <section class="card" id="pagamentoCard">
+    <div class="card-label" style="font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.8px;">Pague com Pix para liberar os créditos</div>
+    <div class="qr-wrap"><img id="qrImg" alt="QR Code Pix" /></div>
+    <div class="copia-cola" id="copiaCola"></div>
+    <button class="btn-copiar" onclick="copiarPix()">Copiar código Pix</button>
+    <div class="status-aguardando" id="statusPagamento">Aguardando confirmação do pagamento…</div>
+  </section>
+</div>
+
+<script src="/config.js"></script>
+<script src="/vendor/supabase.js"></script>
+<script src="/js/auth.js"></script>
+<script>
+  const fmtBRL = (centavos) => (centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  let compraAtual = null;
+  let pollTimer = null;
+
+  async function carregarPacotes() {
+    const res = await authFetch('/api/pacotes');
+    const pacotes = await res.json();
+    document.getElementById('pacotesWrap').innerHTML = pacotes.map(p => `
+      <div class="pacote">
+        <div class="creditos">${p.creditos}<small>créditos</small></div>
+        <div class="preco">${fmtBRL(p.valorCentavos)}</div>
+        <button class="btn-comprar" onclick="comprar('${p.pacote}')">Comprar via Pix</button>
+      </div>
+    `).join('');
+  }
+
+  async function comprar(pacote) {
+    document.querySelectorAll('.btn-comprar').forEach(b => b.disabled = true);
+    try {
+      const res = await authFetch('/api/compras', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pacote }),
+      });
+      const compra = await res.json();
+      if (!res.ok) throw new Error(compra.erro || 'Erro ao criar a compra');
+
+      compraAtual = compra;
+      document.getElementById('qrImg').src = compra.qrCodeDataUrl;
+      document.getElementById('copiaCola').textContent = compra.pixCopiaECola;
+      document.getElementById('statusPagamento').textContent = 'Aguardando confirmação do pagamento…';
+      document.getElementById('statusPagamento').className = 'status-aguardando';
+      document.getElementById('pagamentoCard').classList.add('show');
+      document.getElementById('pagamentoCard').scrollIntoView({ behavior: 'smooth' });
+
+      iniciarPolling(compra.id);
+    } catch (err) {
+      alert(`Erro ao iniciar a compra: ${err.message}`);
+    } finally {
+      document.querySelectorAll('.btn-comprar').forEach(b => b.disabled = false);
+    }
+  }
+
+  function iniciarPolling(id) {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+      try {
+        const res = await authFetch(`/api/compras/${id}`);
+        const compra = await res.json();
+        if (compra.status === 'pago') {
+          clearInterval(pollTimer);
+          document.getElementById('statusPagamento').textContent = `✓ Pagamento confirmado — ${compra.creditos} créditos adicionados ao seu saldo!`;
+          document.getElementById('statusPagamento').className = 'status-pago';
+        }
+      } catch {}
+    }, 5000);
+  }
+
+  function copiarPix() {
+    if (!compraAtual) return;
+    navigator.clipboard.writeText(compraAtual.pixCopiaECola)
+      .then(() => alert('Código Pix copiado — cole no app do seu banco.'))
+      .catch(() => alert('Não foi possível copiar automaticamente — selecione o texto e copie manualmente.'));
+  }
+
+  (async () => {
+    const sessao = await exigirSessao();
+    if (!sessao) return;
+    carregarPacotes();
+  })();
+</script>
+</body>
+</html>
