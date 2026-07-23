@@ -13,11 +13,12 @@
     "importar-receita": "node src/scripts/importar-receita.js",
     "validar-sinonimos": "node src/scripts/validar-sinonimos.js",
     "detectar-emails-genericos": "node src/scripts/detectar-emails-genericos.js",
-    "test": "node --test"
+    "test": "cross-env NODE_ENV=test node --test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "latest",
     "@google/generative-ai": "^0.24.1",
+    "@sentry/node": "^10.67.0",
     "@supabase/supabase-js": "^2.110.5",
     "axios": "latest",
     "better-sqlite3": "latest",
@@ -31,9 +32,13 @@
     "node-stream-zip": "latest",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
+    "pino-roll": "^4.0.0",
     "playwright": "latest",
     "qrcode": "^1.5.4",
     "whois": "latest",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0"
   }
 }

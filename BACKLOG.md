@@ -66,8 +66,8 @@ conveniente). A 6.1 é a exceção: tem trabalho de verdade, ver abaixo.
 
 ### Épico 5 — Observabilidade & Logs
 - [x] ✅ 5.1 — Logger estruturado + log de toda requisição
-- [ ] ⬜ 5.2 — Rotação e retenção de logs
-- [ ] ⬜ 5.3 — Alertas de erro e uptime
+- [x] ✅ 5.2 — Rotação e retenção de logs
+- [x] 🟡 5.3 — Alertas de erro e uptime — código pronto (Sentry condicional a `SENTRY_DSN`, endpoint `/health`), mas falta ação manual do usuário: criar conta free no Sentry (colar o DSN no `.env`) e cadastrar a URL pública no UptimeRobot (ou similar) apontando pra `/health` — isso é 100% configuração externa, não tem mais nada de código
 - [ ] ⬜ 5.4 — Auditoria de eventos de negócio — *depende de: 0.2 ✅*
 
 ### Épico 6 — Painel Admin

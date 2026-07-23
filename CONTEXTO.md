@@ -338,6 +338,18 @@ Também: handler de erro global no fim do `server.js` (Express 5 encaminha rejei
 
 **Armadilha encontrada (não é do pino, é do ambiente):** ao reaproveitar uma branch vazia pré-criada, ela ficava presa num commit antigo da main — corrigido na skill/agente pra sempre resetar pro HEAD atual depois de confirmar que não há commit próprio pra perder (ver seção 12). Além disso, `npm install <pacote>` seguido de `git reset --hard` sem commitar o `package.json` no meio perde a dependência instalada — aconteceu com `pino`/`pino-http` nesta mesma história, corrigido reinstalando antes de seguir.
 
+**5.2 — Rotação e retenção de logs:** `src/utils/logger.js` ganhou um segundo destino via `pino.transport({ targets: [...] })` — continua escrevendo em stdout (dev não perde a visão em tempo real) **e** em `logs/app*.log`, girando por dia ou por 10MB (o que vier primeiro), via `pino-roll`. Retenção usa `limit.count` do próprio pino-roll (ele mesmo apaga os arquivos mais antigos ao girar) — não precisou de script de limpeza separado; como a rotação é diária, `limit.count = LOG_RETENCAO_DIAS` (padrão 30) já equivale a "reter N dias". Configurável via `LOG_DIR`/`LOG_RETENCAO_DIAS` no `.env`. `logs/` entrou no `.gitignore`.
+
+**Bug achado e corrigido antes de dar por certo:** o transport (stdout+arquivo) usa worker thread — sem cuidado, isso rodaria **até durante `npm test`**, criando arquivo de log de verdade e um worker thread por execução de teste, só porque `logger.js` é importado pelos testes. Corrigido: `criarLogger()` sem `destino` explícito agora também cai no modo síncrono simples (sem transport) quando `NODE_ENV=test` — o script `test` do `package.json` passou a setar isso via `cross-env` (funciona igual em qualquer shell/SO). Confirmado rodando `npm test` antes/depois do fix: sem o fix, `logs/` aparecia na raiz do repo depois de rodar os testes; com o fix, não aparece mais.
+
+**5.3 — Alertas de erro e uptime:** `src/utils/sentry.js` — `Sentry.init()` só roda se `SENTRY_DSN` estiver no `.env` (mesmo padrão de "graceful degradation" já usado pro Pix); `Sentry.setupExpressErrorHandler(app)` é registrado no `server.js` **depois de todas as rotas e antes do handler de erro global** (é a ordem que a doc do SDK v10 pede — assim o Sentry reporta e repassa pro nosso handler, que ainda cuida do log via pino e da resposta ao cliente). Cuidado que vale registrar: com Sentry ativo, sua própria integração já loga+reporta+encerra o processo em `uncaughtException` — por isso só registro meu handler de fallback (`logger.fatal` + `process.exit(1)`) quando o Sentry **não** está ativo, pra não competir os dois no `process.exit()` e arriscar matar o processo antes do Sentry conseguir enviar o evento. `unhandledRejection` sempre loga via pino (não é uma condição de corrida, nenhum dos dois encerra o processo nesse caso).
+
+Endpoint `GET /health` (público, sem auth, sem round-trip no banco) pro monitor de uptime externo (UptimeRobot ou similar) pingar.
+
+**Isso NÃO é código — é ação manual do usuário, sem a qual a história fica só "pronta tecnicamente":**
+1. Criar conta free em [sentry.io](https://sentry.io), criar um projeto Node/Express, colar o DSN em `SENTRY_DSN` no `.env`.
+2. Criar conta free no [UptimeRobot](https://uptimerobot.com) (ou similar) e cadastrar um monitor HTTP apontando pra `<url-pública>/health`, com alerta por email/Telegram — só existe URL pública depois do Épico 7 (deploy); em dev, dá pra testar localmente mas não faz sentido monitorar `localhost`.
+
 ---
 
-*Última atualização: 2026-07-23 — Épico 5 em andamento (5.1 concluída); ver seção 13.*
+*Última atualização: 2026-07-23 — Épico 5 em andamento (5.1-5.3 concluídas); ver seção 13.*
