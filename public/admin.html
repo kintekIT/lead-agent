@@ -86,7 +86,30 @@
     .msg.erro { color:var(--red); }
     .msg.sucesso { color:var(--green); }
     .prazo-alerta { color:var(--orange); font-weight:600; }
-    @media (max-width:640px){ .detalhe-grid { grid-template-columns:1fr; } .app { padding:18px 14px 40px; } }
+
+    /* Métricas do negócio (história 6.4) */
+    .metricas-topo { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .periodo-select { -webkit-appearance:none; appearance:none; }
+    .stat-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:14px; margin-bottom:22px; }
+    .stat-tile {
+      background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:14px 16px;
+    }
+    .stat-tile .k { font-size:11px; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+    .stat-tile .v { font-size:26px; font-weight:600; letter-spacing:-.5px; font-variant-numeric:proportional-nums; }
+    .stat-tile .v.creditos-vendidos { color:var(--green); }
+    .stat-tile .v.creditos-consumidos { color:var(--blue); }
+    .grafico-linha { margin-bottom:22px; }
+    .grafico-linha .subtitulo { margin-top:0; }
+    .barras-svg { width:100%; height:120px; display:block; }
+    .barras-svg rect { transition:opacity .12s; }
+    .barras-svg rect:hover { opacity:.75; }
+    .barras-eixo { font-size:10px; fill:var(--text2); }
+    .nichos-grid { display:grid; grid-template-columns:1fr; gap:6px; }
+    .nicho-linha { display:grid; grid-template-columns:140px 1fr 40px; align-items:center; gap:10px; font-size:12.5px; }
+    .nicho-barra-track { background:rgba(255,255,255,.05); border-radius:4px; height:10px; overflow:hidden; }
+    .nicho-barra-fill { background:var(--blue); height:100%; border-radius:4px; }
+    @media (max-width:900px){ .stat-grid { grid-template-columns:repeat(2, 1fr); } }
+    @media (max-width:640px){ .detalhe-grid { grid-template-columns:1fr; } .app { padding:18px 14px 40px; } .stat-grid { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
@@ -101,6 +124,19 @@
       <button class="pill" onclick="sair()">Sair</button>
     </div>
   </header>
+
+  <!-- Métricas do negócio (história 6.4) -->
+  <section class="card">
+    <div class="metricas-topo">
+      <div class="card-label" style="margin-bottom:0">Métricas do negócio</div>
+      <select class="pill periodo-select" id="selectPeriodo" onchange="carregarMetricas()">
+        <option value="7">Últimos 7 dias</option>
+        <option value="30" selected>Últimos 30 dias</option>
+        <option value="90">Últimos 90 dias</option>
+      </select>
+    </div>
+    <div id="metricasWrap"><div class="vazio">Carregando…</div></div>
+  </section>
 
   <!-- Fila de confirmação de compras Pix (história 6.3) -->
   <section class="card">
@@ -344,6 +380,94 @@
     }
   }
 
+  // Barras verticais em SVG puro (história 6.4) — sem lib de gráfico, seguindo
+  // as specs do design system: coluna ≤24px, topo arredondado 4px, base
+  // quadrada, rótulo de eixo só no primeiro/último ponto (nunca em todos).
+  function renderBarrasColuna(pontos, cor) {
+    const W = 600, H = 110, EIXO_H = 16;
+    const areaH = H - EIXO_H;
+    const max = Math.max(1, ...pontos.map(p => p.total));
+    const n = Math.max(1, pontos.length);
+    const slotW = W / n;
+    const barW = Math.min(24, slotW * 0.6);
+
+    const barras = pontos.map((p, i) => {
+      const barH = Math.round((p.total / max) * (areaH - 6));
+      const x = i * slotW + (slotW - barW) / 2;
+      const y = areaH - barH;
+      const r = Math.min(4, barH); // não deixa o cantinho arredondado "vazar" em barras baixinhas
+      return `<g>
+        <title>${esc(fmtData(p.dia))} — ${p.total}</title>
+        <rect x="${x.toFixed(1)}" y="${y}" width="${barW.toFixed(1)}" height="${Math.max(barH, 1)}" rx="${r}" ry="${r}" fill="${cor}" />
+        ${r > 0 ? `<rect x="${x.toFixed(1)}" y="${(areaH - r).toFixed(1)}" width="${barW.toFixed(1)}" height="${r}" fill="${cor}" />` : ''}
+      </g>`;
+    }).join('');
+
+    const rotuloIni = pontos.length ? fmtData(pontos[0].dia) : '';
+    const rotuloFim = pontos.length ? fmtData(pontos[pontos.length - 1].dia) : '';
+
+    return `<svg class="barras-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      ${barras}
+      <text x="2" y="${H - 3}" class="barras-eixo">${esc(rotuloIni)}</text>
+      <text x="${W - 2}" y="${H - 3}" class="barras-eixo" text-anchor="end">${esc(rotuloFim)}</text>
+    </svg>`;
+  }
+
+  function compactar(n) {
+    if (n >= 1000000) return (n / 1000000).toFixed(1).replace('.0', '') + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1).replace('.0', '') + 'K';
+    return String(n);
+  }
+
+  async function carregarMetricas() {
+    const dias = document.getElementById('selectPeriodo').value;
+    const res = await authFetch(`/api/admin/metricas?dias=${dias}`);
+    if (!res.ok) {
+      const corpo = await res.json().catch(() => ({}));
+      document.getElementById('metricasWrap').innerHTML = `<div class="vazio">Falha ao carregar métricas${corpo?.erro ? ': ' + esc(corpo.erro) : ''}.</div>`;
+      return;
+    }
+    const m = await res.json();
+
+    const totalUsuarios = m.novosUsuariosPorDia.reduce((s, p) => s + p.total, 0);
+    const totalBuscas   = m.buscasPorDia.reduce((s, p) => s + p.total, 0);
+    const { trial, converteram } = m.trialParaCompra;
+    const taxaConversao = trial > 0 ? `${((converteram / trial) * 100).toFixed(1)}%` : '—';
+
+    document.getElementById('metricasWrap').innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-tile"><div class="k">Novos usuários (${m.periodoDias}d)</div><div class="v">${compactar(totalUsuarios)}</div></div>
+        <div class="stat-tile"><div class="k">Buscas (${m.periodoDias}d)</div><div class="v">${compactar(totalBuscas)}</div></div>
+        <div class="stat-tile"><div class="k">Créditos vendidos</div><div class="v creditos-vendidos">${compactar(m.creditosVendidos)}</div></div>
+        <div class="stat-tile"><div class="k">Créditos consumidos</div><div class="v creditos-consumidos">${compactar(m.creditosConsumidos)}</div></div>
+        <div class="stat-tile"><div class="k">Trial → compra (vitalício)</div><div class="v">${taxaConversao}</div></div>
+      </div>
+
+      <div class="grafico-linha">
+        <div class="subtitulo">Novos usuários por dia</div>
+        ${m.novosUsuariosPorDia.length ? renderBarrasColuna(m.novosUsuariosPorDia, 'var(--blue)') : '<div class="vazio">Sem novos usuários no período.</div>'}
+      </div>
+
+      <div class="grafico-linha">
+        <div class="subtitulo">Buscas por dia</div>
+        ${m.buscasPorDia.length ? renderBarrasColuna(m.buscasPorDia, 'var(--green)') : '<div class="vazio">Nenhuma busca no período.</div>'}
+      </div>
+
+      <div class="subtitulo">Nichos mais buscados</div>
+      <div class="nichos-grid">
+        ${m.nichosMaisBuscados.length ? m.nichosMaisBuscados.map(n => {
+          const maxNicho = m.nichosMaisBuscados[0].total;
+          const pct = Math.round((n.total / maxNicho) * 100);
+          return `<div class="nicho-linha">
+            <span>${esc(n.nicho)}</span>
+            <div class="nicho-barra-track"><div class="nicho-barra-fill" style="width:${pct}%"></div></div>
+            <span class="muted" style="text-align:right">${n.total}</span>
+          </div>`;
+        }).join('') : '<div class="vazio">Nenhuma busca no período.</div>'}
+      </div>
+    `;
+  }
+
   async function carregarFilaPix() {
     const res = await authFetch('/api/admin/compras/pendentes');
     if (!res.ok) {
@@ -388,6 +512,7 @@
     try { me = await (await authFetch('/api/me')).json(); } catch { window.location.href = '/'; return; }
     if (me.role !== 'admin') { window.location.href = '/'; return; }
 
+    carregarMetricas();
     carregarFilaPix();
     carregarLista();
   })();

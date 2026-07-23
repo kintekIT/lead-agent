@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const {
   iniciarBodySchema, previaBodySchema, sessionIdParamSchema,
   adminListQuerySchema, adminUsuarioIdParamSchema, adminPapelBodySchema,
-  compraBodySchema, compraIdParamSchema, adminCreditosBodySchema,
+  compraBodySchema, compraIdParamSchema, adminCreditosBodySchema, adminMetricasQuerySchema,
 } = require('../src/validation/schemas');
 const { validar } = require('../src/middleware/validar');
 
@@ -121,6 +121,22 @@ test('adminCreditosBodySchema rejeita delta zero, fora do limite, ou motivo curt
   assert.equal(adminCreditosBodySchema.safeParse({ delta: 200000, motivo: 'motivo válido' }).success, false);
   assert.equal(adminCreditosBodySchema.safeParse({ delta: 10, motivo: 'oi' }).success, false);
   assert.equal(adminCreditosBodySchema.safeParse({ delta: 10 }).success, false);
+});
+
+test('adminMetricasQuerySchema usa 30 dias como padrão e coage pra número', () => {
+  const r1 = adminMetricasQuerySchema.safeParse({});
+  assert.equal(r1.success, true);
+  assert.equal(r1.data.dias, 30);
+
+  const r2 = adminMetricasQuerySchema.safeParse({ dias: '7' });
+  assert.equal(r2.success, true);
+  assert.equal(r2.data.dias, 7);
+  assert.equal(typeof r2.data.dias, 'number');
+});
+
+test('adminMetricasQuerySchema rejeita dias fora do intervalo 1-365', () => {
+  assert.equal(adminMetricasQuerySchema.safeParse({ dias: 0 }).success, false);
+  assert.equal(adminMetricasQuerySchema.safeParse({ dias: 366 }).success, false);
 });
 
 test('middleware validar() com fonte "query" substitui req.query mesmo sendo um getter só-leitura (Express 5)', () => {

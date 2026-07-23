@@ -17,7 +17,7 @@ const { logger } = require('./utils/logger');
 const {
   iniciarBodySchema, previaBodySchema, sessionIdParamSchema,
   adminListQuerySchema, adminUsuarioIdParamSchema, adminPapelBodySchema,
-  compraBodySchema, compraIdParamSchema, adminCreditosBodySchema,
+  compraBodySchema, compraIdParamSchema, adminCreditosBodySchema, adminMetricasQuerySchema,
 } = require('./validation/schemas');
 const { tamanhoPool } = require('./config/pool-dedup');
 const { PACOTES } = require('./config/pacotes-creditos');
@@ -467,6 +467,13 @@ app.get('/api/admin/eventos', exigirAdmin, async (_req, res) => {
     .order('criado_em', { ascending: false })
     .limit(50);
   if (error) return res.status(500).json({ erro: error.message });
+  res.json(data);
+});
+
+/* ── GET /api/admin/metricas ── saúde do negócio em números (história 6.4) */
+app.get('/api/admin/metricas', exigirAdmin, validar(adminMetricasQuerySchema, 'query'), async (req, res) => {
+  const { data, error } = await supabaseAdmin.rpc('metricas_negocio', { p_dias: req.query.dias });
+  if (error) return res.status(500).json({ erro: `Falha ao calcular métricas: ${error.message}` });
   res.json(data);
 });
 

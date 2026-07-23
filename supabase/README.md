@@ -24,6 +24,7 @@ arquivo abaixo **nesta ordem** (cada uma depende da anterior) e execute (Run):
 3. `migrations/20260722140000_previa_contagem.sql` — prévia pré-consumo (história 2.4)
 4. `migrations/20260722150000_confirmar_compra_pix.sql` — confirmação de compra Pix (história 2.5)
 5. `migrations/20260723160000_auditoria_eventos.sql` — tabela `events`, auditoria de ações admin (história 5.4)
+6. `migrations/20260723170000_metricas_negocio.sql` — `metricas_negocio()`, agregados pro painel admin (história 6.4)
 
 Opção B — **CLI** (mantém o histórico de migrations no Supabase):
 ```bash

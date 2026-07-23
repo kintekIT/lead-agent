@@ -400,4 +400,16 @@ Não precisou de migration nova — reaproveita a trigger `trg_impedir_saldo_neg
 
 ---
 
-*Última atualização: 2026-07-23 — histórias 5.4, 6.1, 6.2 e 6.3 mergeadas na main; duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13-16.*
+## 17. Épico 6 — história 6.4: métricas do negócio (2026-07-23)
+
+**Migration nova** (`20260723170000_metricas_negocio.sql`, **ainda não aplicada** — confirmado rodando a RPC contra o banco real agora e recebendo `PGRST202`, função fora do schema cache): função `metricas_negocio(p_dias integer default 30)`, um `select jsonb_build_object(...)` só, devolvendo tudo que o painel precisa numa chamada: novos usuários/dia, buscas/dia, créditos vendidos × consumidos (via `credit_ledger.motivo`), top 10 nichos mais buscados, e a conversão trial→compra. Essa última é **vitalícia de propósito** — não filtra por `p_dias`, porque é uma taxa por coorte, não um contador do período (zerar a cada janela não faz sentido de negócio).
+
+**Backend:** `GET /api/admin/metricas?dias=7|30|90` (schema novo, `adminMetricasQuerySchema`) só chama a RPC e devolve o jsonb direto — toda a agregação vive no Postgres, não em JS.
+
+**Frontend:** seção nova no topo do `admin.html`, antes da fila Pix. Segui a skill `dataviz` deste ambiente pra montar: 5 stat tiles (novos usuários, buscas, créditos vendidos/consumidos, conversão trial→compra), dois gráficos de barra em SVG puro (novos usuários/dia e buscas/dia — sem lib de gráfico, só `<svg>` + `<rect>`, seguindo as specs do design system: coluna ≤24px sem nunca preencher o slot todo, topo arredondado 4px/base quadrada via um segundo `<rect>` sobrepondo o arredondamento de baixo, `<title>` por barra como tooltip nativo, rótulo de eixo só no primeiro/último dia — nunca em todos), e um ranking horizontal de nichos (barra de progresso proporcional ao mais buscado, não pizza/donut — identidade + magnitude pede lista ranqueada, não fatia de círculo).
+
+**Ainda falta pra fechar de verdade** (mesmo padrão de toda migration nova neste projeto): colar `20260723170000_metricas_negocio.sql` no SQL Editor do Supabase, depois validar com a skill `validar-migration` (token de admin real, `GET /api/admin/metricas` deve responder 200 com números de verdade em vez do erro atual).
+
+---
+
+*Última atualização: 2026-07-23 — histórias 5.4, 6.1, 6.2 e 6.3 mergeadas na main; 6.4 pronta em código, aguardando aplicar a migration; duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13-17.*
