@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel Admin — Lead Agent AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#07090F; --bg3:#161B24; --card:rgba(22,27,36,.85);
+      --border:rgba(255,255,255,.07); --border2:rgba(255,255,255,.13);
+      --blue:#4F8EF7; --blue-dark:#2F6FE8; --green:#34D399; --red:#F87171; --orange:#FBBF24;
+      --text:#E8EEF6; --text2:#8892A0; --text3:#3D4550;
+      --font:'Inter',system-ui,sans-serif;
+      --shadow:0 0 0 1px rgba(255,255,255,.05), 0 12px 40px rgba(0,0,0,.5);
+    }
+    html, body { min-height:100%; font-family:var(--font); background:var(--bg); color:var(--text); font-size:14px; line-height:1.5; }
+    body::before {
+      content:''; position:fixed; inset:0; pointer-events:none;
+      background:radial-gradient(ellipse 90% 55% at 50% -10%, rgba(79,142,247,.09), transparent 60%);
+    }
+    .app { position:relative; z-index:1; max-width:1040px; margin:0 auto; padding:28px 24px 60px; display:flex; flex-direction:column; gap:16px; }
+    .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .brand-icon {
+      width:40px; height:40px; border-radius:11px;
+      background:linear-gradient(135deg,var(--blue-dark),#A78BFA);
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 0 24px rgba(79,142,247,.35); font-size:20px;
+    }
+    .brand h1 { font-size:17px; font-weight:800; letter-spacing:-.3px; }
+    .header-actions { display:flex; gap:10px; }
+    .pill {
+      display:inline-flex; align-items:center; gap:7px; padding:8px 16px;
+      background:var(--bg3); border:1px solid var(--border); border-radius:100px;
+      font-size:12.5px; font-weight:500; color:var(--text2); cursor:pointer;
+      text-decoration:none; font-family:var(--font); transition:all .18s;
+    }
+    .pill:hover { color:var(--text); border-color:var(--border2); }
+    .pill:disabled { opacity:.4; cursor:not-allowed; }
+    .card {
+      background:var(--card); border:1px solid var(--border); border-radius:12px;
+      backdrop-filter:blur(16px); box-shadow:var(--shadow); padding:22px 26px;
+    }
+    .card-label { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.8px; margin-bottom:16px; }
+    .busca-row { display:flex; gap:10px; margin-bottom:14px; }
+    .busca-row input {
+      flex:1; background:var(--bg3); border:1px solid var(--border); border-radius:8px;
+      padding:9px 14px; color:var(--text); font-family:var(--font); font-size:13px; outline:none;
+    }
+    .busca-row input:focus { border-color:var(--border2); }
+    table { width:100%; border-collapse:collapse; }
+    th { padding:8px 10px; text-align:left; font-size:10.5px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--border); }
+    td { padding:9px 10px; border-bottom:1px solid rgba(255,255,255,.04); font-size:12.5px; }
+    tr.linha-usuario { cursor:pointer; transition:background .15s; }
+    tr.linha-usuario:hover { background:rgba(255,255,255,.03); }
+    tr.linha-usuario.selecionada { background:rgba(79,142,247,.08); }
+    .delta-pos { color:var(--green); font-weight:700; }
+    .delta-neg { color:var(--red);   font-weight:700; }
+    .muted { color:var(--text2); }
+    .vazio { color:var(--text3); font-size:12.5px; padding:14px 10px; }
+    .tag { display:inline-flex; padding:3px 12px; border-radius:100px; font-size:11px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; }
+    .tag.user    { background:rgba(136,146,160,.14); color:var(--text2); border:1px solid rgba(136,146,160,.3); }
+    .tag.admin   { background:rgba(251,191,36,.12);  color:var(--orange); border:1px solid rgba(251,191,36,.3); }
+    .tag.ativo   { background:rgba(52,211,153,.12);  color:var(--green); border:1px solid rgba(52,211,153,.3); }
+    .tag.bloqueado { background:rgba(248,113,113,.12); color:var(--red); border:1px solid rgba(248,113,113,.3); }
+    .paginacao { display:flex; align-items:center; justify-content:center; gap:14px; margin-top:14px; }
+    .paginacao span { font-size:12.5px; color:var(--text2); }
+    .detalhe-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px 28px; margin-bottom:18px; }
+    .dado .k { font-size:11.5px; color:var(--text2); margin-bottom:3px; }
+    .dado .v { font-size:14.5px; font-weight:600; }
+    .acoes-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:20px; }
+    select.pill { -webkit-appearance:none; appearance:none; }
+    .pill.perigo:hover { color:var(--red); border-color:rgba(248,113,113,.35); }
+    .pill.sucesso:hover { color:var(--green); border-color:rgba(52,211,153,.35); }
+    .subtitulo { font-size:12.5px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.6px; margin:18px 0 10px; }
+    .msg { font-size:12.5px; padding:8px 0; }
+    .msg.erro { color:var(--red); }
+    .msg.sucesso { color:var(--green); }
+    @media (max-width:640px){ .detalhe-grid { grid-template-columns:1fr; } .app { padding:18px 14px 40px; } }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="brand">
+      <div class="brand-icon">🛠️</div>
+      <h1>Painel Admin — Usuários</h1>
+    </div>
+    <div class="header-actions">
+      <a class="pill" href="/">← Voltar ao app</a>
+      <button class="pill" onclick="sair()">Sair</button>
+    </div>
+  </header>
+
+  <!-- Lista + busca (história 6.1) -->
+  <section class="card">
+    <div class="card-label">Contas</div>
+    <div class="busca-row">
+      <input id="inputBusca" type="text" placeholder="Buscar por email…" oninput="onBusca()" />
+    </div>
+    <div id="listaWrap"><div class="vazio">Carregando…</div></div>
+    <div class="paginacao" id="paginacaoWrap" style="display:none">
+      <button class="pill" id="btnAnterior" onclick="mudarPagina(-1)">← Anterior</button>
+      <span id="paginaInfo"></span>
+      <button class="pill" id="btnProxima" onclick="mudarPagina(1)">Próxima →</button>
+    </div>
+  </section>
+
+  <!-- Detalhe do usuário selecionado -->
+  <section class="card" id="detalheCard" style="display:none">
+    <div class="card-label">Detalhe da conta</div>
+    <div class="detalhe-grid">
+      <div class="dado"><div class="k">Email</div><div class="v" id="dEmail">…</div></div>
+      <div class="dado"><div class="k">Cadastro em</div><div class="v" id="dCriado">…</div></div>
+      <div class="dado"><div class="k">Papel</div><div class="v"><span class="tag" id="dPapel">…</span></div></div>
+      <div class="dado"><div class="k">Status</div><div class="v"><span class="tag" id="dStatus">…</span></div></div>
+      <div class="dado"><div class="k">Saldo de créditos</div><div class="v" id="dSaldo">…</div></div>
+    </div>
+
+    <div class="acoes-row">
+      <button class="pill perigo" id="btnBloquear" onclick="bloquear()">Bloquear conta</button>
+      <button class="pill sucesso" id="btnDesbloquear" onclick="desbloquear()">Desbloquear conta</button>
+      <select class="pill" id="selectPapel">
+        <option value="user">Papel: user</option>
+        <option value="admin">Papel: admin</option>
+      </select>
+      <button class="pill" onclick="salvarPapel()">Salvar papel</button>
+      <span class="msg" id="msgAcao"></span>
+    </div>
+
+    <div class="subtitulo">Extrato de créditos (últimas 20)</div>
+    <div id="dExtratoWrap"><div class="vazio">…</div></div>
+
+    <div class="subtitulo">Buscas realizadas (últimas 20)</div>
+    <div id="dBuscasWrap"><div class="vazio">…</div></div>
+  </section>
+</div>
+
+<script src="/config.js"></script>
+<script src="/vendor/supabase.js"></script>
+<script src="/js/auth.js"></script>
+<script>
+  const fmtData = (iso) => iso ? new Date(iso).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
+  const fmtDataHora = (iso) => iso ? new Date(iso).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
+  const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  const MOTIVOS = { trial:'Créditos de teste', compra:'Compra de pacote', consumo:'Geração de leads', estorno:'Estorno', ajuste:'Ajuste' };
+  const STATUS_BUSCA = { executando:'Executando…', concluida:'Concluída', erro:'Erro' };
+
+  let pagina = 1;
+  let totalPaginas = 1;
+  let termoBusca = '';
+  let buscaTimer = null;
+  let usuarioSelecionadoId = null;
+
+  function onBusca() {
+    clearTimeout(buscaTimer);
+    buscaTimer = setTimeout(() => {
+      termoBusca = document.getElementById('inputBusca').value.trim();
+      pagina = 1;
+      carregarLista();
+    }, 300);
+  }
+
+  function mudarPagina(delta) {
+    const alvo = pagina + delta;
+    if (alvo < 1 || alvo > totalPaginas) return;
+    pagina = alvo;
+    carregarLista();
+  }
+
+  async function carregarLista() {
+    const qs = new URLSearchParams({ pagina: String(pagina) });
+    if (termoBusca) qs.set('busca', termoBusca);
+
+    const res = await authFetch(`/api/admin/usuarios?${qs}`);
+    if (!res.ok) {
+      document.getElementById('listaWrap').innerHTML = `<div class="vazio">Falha ao carregar usuários.</div>`;
+      return;
+    }
+    const { usuarios, totalPaginas: tp } = await res.json();
+    totalPaginas = tp;
+
+    document.getElementById('listaWrap').innerHTML = usuarios.length
+      ? `<table><thead><tr><th>Email</th><th>Papel</th><th>Cadastro</th></tr></thead><tbody>` +
+        usuarios.map(u => `<tr class="linha-usuario${u.id === usuarioSelecionadoId ? ' selecionada' : ''}" onclick="selecionarUsuario('${u.id}')">
+            <td>${esc(u.email)}</td>
+            <td><span class="tag ${u.role}">${u.role}</span></td>
+            <td class="muted">${fmtData(u.criado_em)}</td>
+          </tr>`).join('') + `</tbody></table>`
+      : `<div class="vazio">Nenhum usuário encontrado${termoBusca ? ' para essa busca' : ''}.</div>`;
+
+    const paginacao = document.getElementById('paginacaoWrap');
+    paginacao.style.display = totalPaginas > 1 ? 'flex' : 'none';
+    document.getElementById('paginaInfo').textContent = `Página ${pagina} de ${totalPaginas}`;
+    document.getElementById('btnAnterior').disabled = pagina <= 1;
+    document.getElementById('btnProxima').disabled = pagina >= totalPaginas;
+  }
+
+  async function selecionarUsuario(id) {
+    usuarioSelecionadoId = id;
+    document.querySelectorAll('tr.linha-usuario').forEach(tr => tr.classList.remove('selecionada'));
+    carregarLista(); // reaplica destaque na linha certa
+
+    const card = document.getElementById('detalheCard');
+    card.style.display = '';
+    document.getElementById('msgAcao').textContent = '';
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    const res = await authFetch(`/api/admin/usuarios/${id}`);
+    if (!res.ok) { document.getElementById('msgAcao').textContent = 'Falha ao carregar detalhe.'; return; }
+    const u = await res.json();
+
+    document.getElementById('dEmail').textContent  = u.email;
+    document.getElementById('dCriado').textContent = fmtData(u.criado_em);
+    const tagPapel = document.getElementById('dPapel');
+    tagPapel.textContent = u.role;
+    tagPapel.className = `tag ${u.role}`;
+    const tagStatus = document.getElementById('dStatus');
+    tagStatus.textContent = u.bloqueado ? 'bloqueado' : 'ativo';
+    tagStatus.className = `tag ${u.bloqueado ? 'bloqueado' : 'ativo'}`;
+    document.getElementById('dSaldo').textContent = `${u.saldo} crédito${u.saldo === 1 ? '' : 's'}`;
+    document.getElementById('selectPapel').value = u.role;
+    document.getElementById('btnBloquear').style.display    = u.bloqueado ? 'none' : '';
+    document.getElementById('btnDesbloquear').style.display = u.bloqueado ? '' : 'none';
+
+    document.getElementById('dExtratoWrap').innerHTML = (u.extrato && u.extrato.length)
+      ? `<table><thead><tr><th>Data</th><th>Descrição</th><th style="text-align:right">Créditos</th></tr></thead><tbody>` +
+        u.extrato.map(l => `<tr>
+            <td class="muted">${fmtDataHora(l.criado_em)}</td>
+            <td>${esc(MOTIVOS[l.motivo] ?? l.motivo)}</td>
+            <td style="text-align:right" class="${l.delta >= 0 ? 'delta-pos' : 'delta-neg'}">${l.delta >= 0 ? '+' : ''}${l.delta}</td>
+          </tr>`).join('') + `</tbody></table>`
+      : `<div class="vazio">Nenhuma movimentação.</div>`;
+
+    document.getElementById('dBuscasWrap').innerHTML = (u.buscas && u.buscas.length)
+      ? `<table><thead><tr><th>Data</th><th>Nicho</th><th>Região</th><th>Solicitado</th><th>Entregue</th><th>Status</th></tr></thead><tbody>` +
+        u.buscas.map(b => `<tr>
+            <td class="muted">${fmtDataHora(b.criado_em)}</td>
+            <td>${esc(b.nicho)}</td>
+            <td>${esc(b.regiao)}</td>
+            <td>${b.qtd_solicitada}</td>
+            <td>${b.qtd_entregue ?? '—'}</td>
+            <td class="muted">${STATUS_BUSCA[b.status] ?? b.status}</td>
+          </tr>`).join('') + `</tbody></table>`
+      : `<div class="vazio">Nenhuma busca realizada.</div>`;
+  }
+
+  async function bloquear() {
+    if (!usuarioSelecionadoId) return;
+    if (!confirm('Bloquear esta conta? O usuário não conseguirá mais logar.')) return;
+    const res = await authFetch(`/api/admin/usuarios/${usuarioSelecionadoId}/bloquear`, { method: 'POST' });
+    const corpo = await res.json();
+    mostrarMsgAcao(res.ok, corpo, 'Conta bloqueada.');
+    if (res.ok) selecionarUsuario(usuarioSelecionadoId);
+  }
+
+  async function desbloquear() {
+    if (!usuarioSelecionadoId) return;
+    const res = await authFetch(`/api/admin/usuarios/${usuarioSelecionadoId}/desbloquear`, { method: 'POST' });
+    const corpo = await res.json();
+    mostrarMsgAcao(res.ok, corpo, 'Conta desbloqueada.');
+    if (res.ok) selecionarUsuario(usuarioSelecionadoId);
+  }
+
+  async function salvarPapel() {
+    if (!usuarioSelecionadoId) return;
+    const role = document.getElementById('selectPapel').value;
+    const res = await authFetch(`/api/admin/usuarios/${usuarioSelecionadoId}/papel`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+    const corpo = await res.json();
+    mostrarMsgAcao(res.ok, corpo, 'Papel atualizado.');
+    if (res.ok) { selecionarUsuario(usuarioSelecionadoId); carregarLista(); }
+  }
+
+  function mostrarMsgAcao(ok, corpo, mensagemOk) {
+    const el = document.getElementById('msgAcao');
+    el.textContent = ok ? mensagemOk : (corpo?.erro || 'Falha na operação.');
+    el.className = `msg ${ok ? 'sucesso' : 'erro'}`;
+  }
+
+  (async () => {
+    const session = await exigirSessao();
+    if (!session) return;
+
+    // Guard de admin no frontend — o backend é quem garante de verdade (história 1.4)
+    let me;
+    try { me = await (await authFetch('/api/me')).json(); } catch { window.location.href = '/'; return; }
+    if (me.role !== 'admin') { window.location.href = '/'; return; }
+
+    carregarLista();
+  })();
+</script>
+</body>
+</html>

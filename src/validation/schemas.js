@@ -30,4 +30,26 @@ const sessionIdParamSchema = z.object({
   id: z.string().regex(/^s_\d+_[a-z0-9]+$/, 'Identificador de sessão inválido.'),
 });
 
-module.exports = { iniciarBodySchema, previaBodySchema, sessionIdParamSchema };
+// Painel admin (história 6.1) — busca por email + paginação da listagem de contas
+const adminListQuerySchema = z.object({
+  busca:  z.string().trim().max(200).optional(),
+  pagina: z.coerce.number({ message: 'Página deve ser um número.' }).int().min(1).default(1),
+});
+
+// uuid gerado pelo auth.users do Supabase
+const adminUsuarioIdParamSchema = z.object({
+  id: z.string().uuid('Identificador de usuário inválido.'),
+});
+
+const adminPapelBodySchema = z.object({
+  role: z.enum(['user', 'admin'], { message: 'Papel deve ser user ou admin.' }),
+});
+
+module.exports = {
+  iniciarBodySchema,
+  previaBodySchema,
+  sessionIdParamSchema,
+  adminListQuerySchema,
+  adminUsuarioIdParamSchema,
+  adminPapelBodySchema,
+};

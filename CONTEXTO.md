@@ -176,6 +176,17 @@ Testes automatizados em `test/sinonimos-cnae.test.js` e `test/receita-matching.t
 
 ---
 
+## 5.2 Painel Admin — Gestão de usuários (história 6.1, 2026-07-22)
+
+Primeira tela do Épico 6 (Painel Admin). Todas as rotas ficam atrás de `exigirAdmin` (história 0.3) — o frontend só reflete, quem barra é o backend (história 1.4).
+
+- **Backend** ([src/server.js](src/server.js)): `GET /api/admin/usuarios` (lista paginada de 20, busca por email via `ilike` em `profiles`), `GET /api/admin/usuarios/:id` (detalhe: perfil + saldo + últimos 20 do `credit_ledger` + últimas 20 `searches` + status de bloqueio), `POST /api/admin/usuarios/:id/bloquear|desbloquear` (usa `supabaseAdmin.auth.admin.updateUserById` com `ban_duration` — não existe "banimento permanente" nativo no GoTrue, a convenção é `'876000h'` ≈ 100 anos), `PATCH /api/admin/usuarios/:id/papel` (promove/rebaixa `user`↔`admin` em `profiles.role`). As três rotas de escrita recusam a própria conta do admin logado (evita autobloqueio/autorebaixamento).
+- **Frontend**: [public/admin.html](public/admin.html) — lista com busca (debounce 300ms) e paginação, clique na linha abre o detalhe (saldo, extrato, buscas, ações). Guard de admin no frontend também (`/api/me` → `role !== 'admin'` → redireciona), mas é só UX; a garantia real é o backend.
+- Link "🛠️ Admin" aparece no header de `index.html` e `conta.html` só quando `me.role === 'admin'`.
+- **Bug do Express 5 encontrado e corrigido**: `req.query` no Express 5 é um getter sem setter (`Object.defineProperty` no prototype) — o middleware `validar()` (história 4.2) fazia `req[fonte] = resultado.data`, o que quebra para `fonte='query'` (primeira vez que o projeto valida query string). Corrigido em [src/middleware/validar.js](src/middleware/validar.js) redefinindo a propriedade na instância da requisição quando `fonte === 'query'`. Coberto por teste em `test/validacao.test.js`.
+
+---
+
 ## 6. Atualizações deste commit (changes de 2026-07-14)
 
 Tudo abaixo está no working tree e será commitado em sequência:

@@ -9,7 +9,10 @@ const { autenticar, exigirAdmin, saldoCreditos } = require('./auth/middleware');
 const { supabaseAdmin, configurado } = require('./auth/supabase');
 const { helmetMiddleware, corsMiddleware, limiteApi } = require('./middleware/seguranca');
 const { validar } = require('./middleware/validar');
-const { iniciarBodySchema, previaBodySchema, sessionIdParamSchema } = require('./validation/schemas');
+const {
+  iniciarBodySchema, previaBodySchema, sessionIdParamSchema,
+  adminListQuerySchema, adminUsuarioIdParamSchema, adminPapelBodySchema,
+} = require('./validation/schemas');
 const { tamanhoPool } = require('./config/pool-dedup');
 
 const app = express();
@@ -213,6 +216,91 @@ app.get('/api/download/:id', validar(sessionIdParamSchema, 'params'), (req, res)
 app.get('/api/admin/ping', exigirAdmin, (req, res) => {
   res.json({ ok: true, admin: req.usuario.email });
 });
+
+const ADMIN_PAGINA_TAM = 20;
+const BAN_PERMANENTE = '876000h'; // ~100 anos — convenção do GoTrue pra "bloqueado até revogar"
+
+/* ── GET /api/admin/usuarios ── lista + busca por email + paginação (história 6.1) */
+app.get('/api/admin/usuarios', exigirAdmin, validar(adminListQuerySchema, 'query'), async (req, res) => {
+  const { busca, pagina } = req.query;
+
+  let query = supabaseAdmin
+    .from('profiles')
+    .select('id, email, role, criado_em', { count: 'exact' })
+    .order('criado_em', { ascending: false });
+  if (busca) query = query.ilike('email', `%${busca}%`);
+
+  const offset = (pagina - 1) * ADMIN_PAGINA_TAM;
+  const { data, error, count } = await query.range(offset, offset + ADMIN_PAGINA_TAM - 1);
+  if (error) return res.status(500).json({ erro: `Falha ao listar usuários: ${error.message}` });
+
+  res.json({
+    usuarios: data,
+    total: count ?? 0,
+    pagina,
+    totalPaginas: Math.max(1, Math.ceil((count ?? 0) / ADMIN_PAGINA_TAM)),
+  });
+});
+
+/* ── GET /api/admin/usuarios/:id ── detalhe: saldo, extrato e buscas (história 6.1) */
+app.get('/api/admin/usuarios/:id', exigirAdmin, validar(adminUsuarioIdParamSchema, 'params'), async (req, res) => {
+  const { id } = req.params;
+
+  const { data: perfil } = await supabaseAdmin
+    .from('profiles')
+    .select('id, email, role, criado_em, termos_aceitos_em')
+    .eq('id', id)
+    .single();
+  if (!perfil) return res.status(404).json({ erro: 'Usuário não encontrado.' });
+
+  const [saldo, { data: extrato }, { data: buscas }, { data: authUser }] = await Promise.all([
+    saldoCreditos(id),
+    supabaseAdmin.from('credit_ledger').select('delta, motivo, criado_em, referencia_tipo, referencia_id')
+      .eq('user_id', id).order('criado_em', { ascending: false }).limit(20),
+    supabaseAdmin.from('searches').select('nicho, regiao, qtd_solicitada, qtd_entregue, status, criado_em')
+      .eq('user_id', id).order('criado_em', { ascending: false }).limit(20),
+    supabaseAdmin.auth.admin.getUserById(id).then(r => r.data, () => null),
+  ]);
+
+  const bannedUntil = authUser?.user?.banned_until ?? null;
+  const bloqueado = !!bannedUntil && new Date(bannedUntil) > new Date();
+
+  res.json({ ...perfil, saldo, bloqueado, extrato: extrato ?? [], buscas: buscas ?? [] });
+});
+
+/* ── POST /api/admin/usuarios/:id/bloquear e /desbloquear (história 6.1) ── */
+app.post('/api/admin/usuarios/:id/bloquear', exigirAdmin, validar(adminUsuarioIdParamSchema, 'params'), async (req, res) => {
+  const { id } = req.params;
+  if (id === req.usuario.id) return res.status(400).json({ erro: 'Você não pode bloquear a própria conta.' });
+
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(id, { ban_duration: BAN_PERMANENTE });
+  if (error) return res.status(500).json({ erro: `Falha ao bloquear: ${error.message}` });
+  res.json({ ok: true, bloqueado: true });
+});
+
+app.post('/api/admin/usuarios/:id/desbloquear', exigirAdmin, validar(adminUsuarioIdParamSchema, 'params'), async (req, res) => {
+  const { id } = req.params;
+
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(id, { ban_duration: 'none' });
+  if (error) return res.status(500).json({ erro: `Falha ao desbloquear: ${error.message}` });
+  res.json({ ok: true, bloqueado: false });
+});
+
+/* ── PATCH /api/admin/usuarios/:id/papel ── promove/rebaixa admin (história 6.1) */
+app.patch(
+  '/api/admin/usuarios/:id/papel',
+  exigirAdmin,
+  validar(adminUsuarioIdParamSchema, 'params'),
+  validar(adminPapelBodySchema, 'body'),
+  async (req, res) => {
+    const { id } = req.params;
+    if (id === req.usuario.id) return res.status(400).json({ erro: 'Você não pode alterar o próprio papel.' });
+
+    const { error } = await supabaseAdmin.from('profiles').update({ role: req.body.role }).eq('id', id);
+    if (error) return res.status(500).json({ erro: `Falha ao alterar papel: ${error.message}` });
+    res.json({ ok: true, role: req.body.role });
+  }
+);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

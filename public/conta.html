@@ -76,6 +76,7 @@
     </div>
     <div class="header-actions">
       <a class="pill" href="/">← Voltar ao app</a>
+      <a class="pill" href="/admin.html" title="Painel Admin" id="pillAdmin" style="display:none">🛠️ Admin</a>
       <button class="pill" onclick="sair()">Sair</button>
     </div>
   </header>
@@ -171,6 +172,7 @@
       tag.textContent = plano;
       tag.className = `plano-tag ${plano}`;
       document.getElementById('cSaldo').innerHTML = `${me.saldo}<small>1 crédito = 1 lead</small>`;
+      if (me.role === 'admin') document.getElementById('pillAdmin').style.display = '';
     } catch {}
 
     carregarExtrato();
