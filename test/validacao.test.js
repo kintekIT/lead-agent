@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { iniciarBodySchema, sessionIdParamSchema } = require('../src/validation/schemas');
+const { iniciarBodySchema, previaBodySchema, sessionIdParamSchema } = require('../src/validation/schemas');
 const { validar } = require('../src/middleware/validar');
 
 test('iniciarBodySchema aceita um corpo válido e coage quantidade para número', () => {
@@ -30,6 +30,17 @@ test('iniciarBodySchema rejeita quantidade fora do intervalo 1-1000', () => {
 test('iniciarBodySchema rejeita modo desconhecido', () => {
   const r = iniciarBodySchema.safeParse({ nicho: 'dentista', regiao: 'SP', quantidade: 10, modo: 'hackeado' });
   assert.equal(r.success, false);
+});
+
+test('previaBodySchema aceita corpo válido sem o campo modo', () => {
+  const r = previaBodySchema.safeParse({ nicho: 'dentista', regiao: 'Sao Paulo SP', quantidade: '20' });
+  assert.equal(r.success, true);
+  assert.equal(r.data.quantidade, 20);
+});
+
+test('previaBodySchema rejeita quantidade fora do intervalo 1-1000', () => {
+  assert.equal(previaBodySchema.safeParse({ nicho: 'dentista', regiao: 'SP', quantidade: 0 }).success, false);
+  assert.equal(previaBodySchema.safeParse({ nicho: 'dentista', regiao: 'SP', quantidade: 1001 }).success, false);
 });
 
 test('sessionIdParamSchema aceita o formato gerado pelo servidor', () => {
