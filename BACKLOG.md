@@ -91,7 +91,7 @@ conveniente).
 - [x] ✅ 8.1 — Fluxo autenticado na interface — *depende de: 0.1 ✅, 1.1 ✅, 1.2 ✅*
 - [x] ✅ 8.2 — Saldo no header + feedback de consumo — *depende de: 2.2 ✅*
 - [x] ✅ 8.3 — Telas de planos, conta e histórico — *depende de: 1.5 ✅, 3.2 ✅* — telas existem, navegação unificada (`public/js/nav.js`) e a 3.2 (dependência que faltava) fechou na mesma sessão
-- [x] 🟡 8.4 — Erros amigáveis e estados vazios — sugestões de nicho e CTA de saldo zero existem; não é sistemático em toda a interface
+- [x] ✅ 8.4 — Erros amigáveis e estados vazios — todo `alert()` de `index.html` e `planos.html` virou mensagem inline (banner de erro + campo destacado no form, feedback no próprio botão ao copiar Pix). `admin.html` ficou de fora de propósito (1 `alert()` restante) — é território do Épico 6 (sócio), ver `CONTEXTO.md`
 
 ---
 

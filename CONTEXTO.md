@@ -573,4 +573,41 @@ padrão (que roda offline, sem rede).
 
 ---
 
-*Última atualização: 2026-07-24 — Épico 6 fechado (6.1/6.2/6.4 ✅, 6.3 🟡 aguardando uso real); 3.2, 8.3 e 4.4 fechados ✅; 4.3 parcial (rate limit por usuário ✅, antifraude do trial depende de config do dashboard Supabase); duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13-21.*
+## 22. Épico 8 — história 8.4: erros amigáveis e estados vazios (2026-07-24)
+
+Levantamento (`grep alert(`) achou 8 usos de `alert()` cru na interface: 4 em `index.html`, 3
+em `planos.html`, 1 em `admin.html`. Trocados os 7 do produto (não do painel admin — ver
+motivo abaixo), cada um pelo padrão já existente mais próximo em vez de inventar um componente
+novo:
+
+- **`index.html`**: os dois "Preencha todos os campos antes de iniciar" (em `confirmarBusca()` e
+  `iniciar()`) viraram um banner inline (`#formErro`, vermelho, mesmo tom de `--red` já usado no
+  resto do design system) + destaque nos campos vazios (`.campo-invalido`, borda vermelha) —
+  refeito como `validarCampos()` centralizado, chamado pelas duas funções, com um listener de
+  `input` que limpa o destaque sozinho assim que o usuário corrige o campo (não precisa clicar
+  em "Iniciar Busca" de novo só pra ver que já corrigiu). O erro de prévia e o "nenhum lead novo
+  encontrado" viraram `addLog('error', ...)` / `addLog('info', ...)` — reaproveitando o painel
+  "Atividade em Tempo Real" que já existe e já tem esse padrão de ícone+cor pra eventos de busca
+  (`error`/`info`/`search`/`lead` etc.), em vez de um popup bloqueante.
+- **`planos.html`**: erro ao iniciar a compra virou um banner inline no topo da página (mesmo
+  padrão visual do `formErro` de `index.html`, classe `.erro-inline`). O feedback de "copiado"/
+  "erro ao copiar" do código Pix virou troca do próprio texto do botão (`✓ Copiado!` por 2s) em
+  vez de alert — não bloqueia a tela pra uma confirmação tão trivial.
+- **`admin.html` ficou de fora de propósito** — só tem 1 `alert()` (erro ao confirmar compra
+  Pix), mas é território do Épico 6 (**responsável: sócio**) — mexer lá sem alinhar antes viola
+  a convenção já registrada no `BACKLOG.md` pra esse épico.
+
+**Validado num navegador real** (Playwright + Chromium, sessão real): confirmei que nenhum
+`alert()`/`confirm()` nativo dispara mais nesses dois fluxos (handler de `dialog` no teste
+provaria a regressão se disparasse), que o banner e o destaque de campo aparecem corretamente
+quando os campos estão vazios, que digitar no campo limpa o destaque sozinho, e que o banner de
+erro de compra mostra a mensagem real do backend (`Pix ainda não configurado...`) em vez de travar
+a tela. `node --test` seguiu 54/54 — mudança 100% frontend, nenhuma rota/schema tocado.
+
+**Fecha a história como ✅** pro escopo do produto (`index.html`/`planos.html`); o `alert()`
+restante em `admin.html` fica registrado aqui como pendência conhecida e pequena, não
+bloqueadora, pro sócio decidir se/quando mexer.
+
+---
+
+*Última atualização: 2026-07-24 — Épico 6 fechado (6.1/6.2/6.4 ✅, 6.3 🟡 aguardando uso real); 3.2, 8.3, 4.4 e 8.4 fechados ✅; 4.3 parcial (rate limit por usuário ✅, antifraude do trial depende de config do dashboard Supabase); duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13-22.*
