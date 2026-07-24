@@ -60,7 +60,7 @@ conveniente).
 ### Épico 4 — Segurança
 - [x] ✅ 4.1 — Hardening HTTP básico (helmet, CORS, rate limit)
 - [x] ✅ 4.2 — Validação de entrada (zod)
-- [ ] ⬜ 4.3 — Rate limiting por usuário + antifraude do trial — *depende de: 0.3 ✅*
+- [x] 🟡 4.3 — Rate limiting por usuário + antifraude do trial — *depende de: 0.3 ✅* — rate limit por usuário (`limitePorUsuario`, `src/middleware/seguranca.js`) em `/api/iniciar` e `/api/previa`, validado contra o servidor real. Antifraude do trial contra múltiplas contas segue 🟡: o cadastro (`sb.auth.signUp`) roda direto no navegador contra o Supabase Auth, sem passar pelo nosso backend — não tem código nosso pra travar aí. O que dava pra fazer em código já existia (índice único que impede o mesmo `user_id` receber trial duas vezes, história 2.1). O resto é config do dashboard Supabase, não código — ver `CONTEXTO.md`
 - [x] 🟡 4.4 — Segregação de chaves e RLS — *depende de: 0.2 ✅* — RLS e chaves já corretas, falta só o teste explícito de acesso cruzado (usuário A lendo dado do B)
 - [x] 🟡 4.5 — Termos de Uso + Política de Privacidade (LGPD) — `termos.html` existe, aceite é registrado no cadastro, mas o texto ainda é placeholder
 

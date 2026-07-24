@@ -11,7 +11,7 @@ const { executarReceita } = require('./executor-receita');
 const { buscarLeadsReceita } = require('./tools/receita');
 const { autenticar, exigirAdmin, saldoCreditos } = require('./auth/middleware');
 const { supabaseAdmin, configurado } = require('./auth/supabase');
-const { helmetMiddleware, corsMiddleware, limiteApi } = require('./middleware/seguranca');
+const { helmetMiddleware, corsMiddleware, limiteApi, limitePorUsuario } = require('./middleware/seguranca');
 const { validar } = require('./middleware/validar');
 const { logRequisicao } = require('./middleware/log-requisicao');
 const { logger } = require('./utils/logger');
@@ -104,7 +104,7 @@ app.get('/api/me', async (req, res) => {
 });
 
 /* ── POST /api/iniciar ── inicia o agente ou RPA e retorna sessionId */
-app.post('/api/iniciar', validar(iniciarBodySchema, 'body'), async (req, res) => {
+app.post('/api/iniciar', limitePorUsuario, validar(iniciarBodySchema, 'body'), async (req, res) => {
   const { nicho, regiao, quantidade: qty, modo } = req.body;
 
   if (modo === 'agente' && (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY === 'sua_chave_aqui')) {
@@ -197,7 +197,7 @@ app.post('/api/iniciar', validar(iniciarBodySchema, 'body'), async (req, res) =>
 });
 
 /* ── POST /api/previa ── conta quantos leads novos existem, sem gerar nem cobrar (história 2.4) */
-app.post('/api/previa', validar(previaBodySchema, 'body'), async (req, res) => {
+app.post('/api/previa', limitePorUsuario, validar(previaBodySchema, 'body'), async (req, res) => {
   const { nicho, regiao, quantidade } = req.body;
 
   const resultado = buscarLeadsReceita(nicho, regiao, tamanhoPool(quantidade));

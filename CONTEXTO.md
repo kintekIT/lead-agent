@@ -497,4 +497,40 @@ que a história 7.2 (deploy + upload do `receita.db`) cobre isso pra produção.
 
 ---
 
-*Última atualização: 2026-07-24 — Épico 6 fechado (6.1/6.2/6.4 ✅, 6.3 🟡 aguardando uso real); 3.2 e 8.3 fechados ✅ (re-download + navegação unificada); duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13-19.*
+## 20. Épico 4 — história 4.3: rate limit por usuário + limite do antifraude do trial (2026-07-24)
+
+**Rate limit por usuário** (`limitePorUsuario`, `src/middleware/seguranca.js`): segunda camada
+além do limite por IP da história 4.1 (`limiteApi`) — chave é `req.usuario.id`, não o IP, então
+cobre o caso que o limite por IP não cobre (um usuário automatizando chamadas por IPs diferentes,
+proxy/VPN). Aplicado em `/api/iniciar` e `/api/previa` (as rotas que batem no motor de busca),
+depois do middleware `autenticar` (precisa de `req.usuario` já preenchido — por isso não dá pra
+aplicar antes dele, só depois, mesmo estando os dois sob `app.use('/api', ...)`). Limite: 10
+chamadas/minuto por usuário.
+
+**Validado contra o servidor real** (magic link, duas contas reais): 12 chamadas seguidas de
+`guh.712@hotmail.com` em `/api/previa` — as 10 primeiras passam pro handler (que aí falha com
+500 por outro motivo, ver achado abaixo), a 11ª e 12ª batem 429 com a mensagem certa. Uma chamada
+de `kintekit@gmail.com` logo depois passa normal — confirma que o balde é por usuário, não
+global. Teste automatizado também criado (`test/seguranca.test.js`) — sobe um Express real na
+porta 0 e bate nele via `fetch`, em vez de mockar `req`/`res` (a lib mexe em headers de resposta
+por baixo dos panos; mock fino quebraria a cada versão nova da lib).
+
+**Antifraude do trial: fica 🟡, não ✅.** O cadastro (`public/login.html`, `sb.auth.signUp()`)
+roda direto no navegador contra a API do Supabase Auth — **nunca passa pelo nosso Express**,
+então rate limit ou lógica de bloqueio no `server.js` simplesmente não tem como interceptar essa
+chamada. O único ponto onde o backend participa do trial é a concessão em si, que já está travada
+desde a história 2.1 (índice único `idx_credit_ledger_trial_unico` em `credit_ledger(user_id)
+where motivo = 'trial'` — um `user_id` não recebe trial duas vezes, migration
+`20260714120000`). O que falta (múltiplas contas/emails diferentes farmando trial) é
+configuração do painel do Supabase, não código: **Authentication → Rate Limits** (limitar
+cadastros por IP/hora) e, se quiser mais robusto, ativar CAPTCHA (hCaptcha/Turnstile) no
+formulário de cadastro. Não dá pra fazer isso a partir daqui — as chaves em `.env`
+(`SUPABASE_SERVICE_ROLE_KEY`) são API keys do projeto, não um token de Management API que
+mexeria em configuração de Auth. Fica pro sócio configurar direto no dashboard quando achar que
+o volume justifica.
+
+`node --test` fechou 54/54 (53 + o teste novo de rate limit).
+
+---
+
+*Última atualização: 2026-07-24 — Épico 6 fechado (6.1/6.2/6.4 ✅, 6.3 🟡 aguardando uso real); 3.2 e 8.3 fechados ✅; 4.3 parcial (rate limit por usuário ✅, antifraude do trial depende de config do dashboard Supabase); duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13-20.*
