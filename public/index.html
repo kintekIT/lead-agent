@@ -143,6 +143,16 @@
     .inp-wrap input::placeholder { color: var(--text3); }
     .inp-wrap input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-glow); }
     .inp-wrap input:disabled { opacity: .4; cursor: not-allowed; }
+    .inp-wrap input.campo-invalido { border-color: var(--red); box-shadow: 0 0 0 3px rgba(248,113,113,.18); }
+
+    /* Erro de validação do formulário (história 8.4) — mensagem inline em vez de alert() */
+    .form-erro {
+      display: none; align-items: center; gap: 8px;
+      margin-top: 12px; padding: 10px 14px;
+      background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3);
+      border-radius: 8px; color: var(--red); font-size: 12.5px; font-weight: 500;
+    }
+    .form-erro.show { display: flex; }
 
     .btn-start {
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -446,6 +456,10 @@
         </button>
       </div>
     </div>
+    <div class="form-erro" id="formErro">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="formErroTexto"></span>
+    </div>
   </section>
 
   <!-- Main Grid -->
@@ -661,16 +675,52 @@
     document.getElementById('btnDl').style.display     = '';
   }
 
+  /* ── Validação do formulário (história 8.4): mensagem inline + destaque nos campos vazios,
+     em vez de alert() — some sozinha assim que o campo em questão é preenchido. */
+  function validarCampos() {
+    const campos = {
+      nicho:      document.getElementById('nicho').value.trim(),
+      regiao:     document.getElementById('regiao').value.trim(),
+      quantidade: parseInt(document.getElementById('quantidade').value, 10),
+    };
+    const invalidos = [];
+    if (!campos.nicho) invalidos.push('nicho');
+    if (!campos.regiao) invalidos.push('regiao');
+    if (!campos.quantidade || campos.quantidade < 1) invalidos.push('quantidade');
+
+    invalidos.forEach(id => document.getElementById(id).classList.add('campo-invalido'));
+    if (invalidos.length) {
+      mostrarErroForm('Preencha todos os campos antes de iniciar.');
+      return null;
+    }
+    limparErroForm();
+    return campos;
+  }
+
+  function mostrarErroForm(msg) {
+    document.getElementById('formErroTexto').textContent = msg;
+    document.getElementById('formErro').classList.add('show');
+  }
+
+  function limparErroForm() {
+    document.getElementById('formErro').classList.remove('show');
+    ['nicho', 'regiao', 'quantidade'].forEach(id => document.getElementById(id).classList.remove('campo-invalido'));
+  }
+
+  // Some com o destaque de erro assim que o usuário mexe no campo — não precisa
+  // esperar clicar em "Iniciar Busca" de novo pra ver que já corrigiu.
+  ['nicho', 'regiao', 'quantidade'].forEach(id => {
+    document.getElementById(id).addEventListener('input', (e) => {
+      e.target.classList.remove('campo-invalido');
+      if (!document.querySelector('.campo-invalido')) limparErroForm();
+    });
+  });
+
   /* ── Prévia (história 2.4): confirma quantos leads novos e o custo antes de gerar ── */
   async function confirmarBusca() {
-    const nicho    = document.getElementById('nicho').value.trim();
-    const regiao   = document.getElementById('regiao').value.trim();
-    const quantidade = parseInt(document.getElementById('quantidade').value, 10);
-
-    if (!nicho || !regiao || !quantidade || quantidade < 1) {
-      alert('Preencha todos os campos antes de iniciar.');
-      return;
-    }
+    const campos = validarCampos();
+    if (!campos) return;
+    const { nicho, regiao, quantidade } = campos;
 
     // Prévia só existe para o motor Receita Federal (é o único com CNPJ pra deduplicar)
     if (modoAtual !== 'receita') { iniciar(); return; }
@@ -692,7 +742,7 @@
     } catch (err) {
       btn.disabled = false;
       btn.innerHTML = htmlOriginal;
-      alert(`Erro ao consultar prévia: ${err.message}`);
+      addLog('error', '✕', `Erro ao consultar prévia: <strong>${esc(err.message)}</strong>`);
       return;
     }
 
@@ -700,7 +750,7 @@
     btn.innerHTML = htmlOriginal;
 
     if (previa.novos === 0) {
-      alert('Nenhum lead novo encontrado — esses leads já foram entregues a você nos últimos 6 meses, ou não há resultado para esse nicho/região.');
+      addLog('info', 'ℹ', 'Nenhum lead novo encontrado — esses leads já foram entregues a você nos últimos 6 meses, ou não há resultado para esse nicho/região.');
       return;
     }
 
@@ -714,14 +764,11 @@
 
   /* ── Start ── */
   async function iniciar() {
-    const nicho    = document.getElementById('nicho').value.trim();
-    const regiao   = document.getElementById('regiao').value.trim();
-    const quantidade = parseInt(document.getElementById('quantidade').value, 10);
-
-    if (!nicho || !regiao || !quantidade || quantidade < 1) {
-      alert('Preencha todos os campos antes de iniciar.');
-      return;
-    }
+    // Já validado por confirmarBusca() antes de chamar iniciar() — revalida aqui só
+    // por segurança (defesa contra chamada direta futura), sem duplicar o alert().
+    const campos = validarCampos();
+    if (!campos) return;
+    const { nicho, regiao, quantidade } = campos;
 
     if (es) { es.close(); es = null; }
     reset();

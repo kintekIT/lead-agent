@@ -81,6 +81,15 @@
     .status-aguardando { color:var(--orange); font-size:13px; font-weight:600; }
     .status-pago { color:var(--green); font-size:16px; font-weight:700; }
     .vazio { color:var(--text3); font-size:12.5px; }
+
+    /* Erro amigável em vez de alert() (história 8.4) */
+    .erro-inline {
+      display: none; align-items: center; gap: 8px;
+      padding: 10px 14px; background: rgba(248,113,113,.1);
+      border: 1px solid rgba(248,113,113,.3); border-radius: 8px;
+      color: #F87171; font-size: 12.5px; font-weight: 500;
+    }
+    .erro-inline.show { display: flex; }
     @media (max-width:640px){ .pacotes { grid-template-columns:1fr; } .app { padding:18px 14px 40px; } }
   </style>
 </head>
@@ -96,6 +105,11 @@
 
   <p class="lede">1 crédito = 1 lead entregue. Escolha um pacote, pague via Pix e o saldo é liberado assim que o pagamento é confirmado.</p>
 
+  <div class="erro-inline" id="erroCompra">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span id="erroCompraTexto"></span>
+  </div>
+
   <section class="pacotes" id="pacotesWrap">
     <div class="vazio">Carregando pacotes…</div>
   </section>
@@ -105,7 +119,7 @@
     <div class="card-label" style="font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.8px;">Pague com Pix para liberar os créditos</div>
     <div class="qr-wrap"><img id="qrImg" alt="QR Code Pix" /></div>
     <div class="copia-cola" id="copiaCola"></div>
-    <button class="btn-copiar" onclick="copiarPix()">Copiar código Pix</button>
+    <button class="btn-copiar" id="btnCopiarPix" onclick="copiarPix()">Copiar código Pix</button>
     <div class="status-aguardando" id="statusPagamento">Aguardando confirmação do pagamento…</div>
   </section>
 </div>
@@ -131,7 +145,17 @@
     `).join('');
   }
 
+  function mostrarErroCompra(msg) {
+    document.getElementById('erroCompraTexto').textContent = msg;
+    document.getElementById('erroCompra').classList.add('show');
+  }
+
+  function limparErroCompra() {
+    document.getElementById('erroCompra').classList.remove('show');
+  }
+
   async function comprar(pacote) {
+    limparErroCompra();
     document.querySelectorAll('.btn-comprar').forEach(b => b.disabled = true);
     try {
       const res = await authFetch('/api/compras', {
@@ -152,7 +176,7 @@
 
       iniciarPolling(compra.id);
     } catch (err) {
-      alert(`Erro ao iniciar a compra: ${err.message}`);
+      mostrarErroCompra(`Erro ao iniciar a compra: ${err.message}`);
     } finally {
       document.querySelectorAll('.btn-comprar').forEach(b => b.disabled = false);
     }
@@ -173,11 +197,16 @@
     }, 5000);
   }
 
+  // Feedback trocando o texto do próprio botão em vez de alert() (história 8.4) —
+  // menos intrusivo, e some sozinho depois de 2s.
   function copiarPix() {
     if (!compraAtual) return;
+    const btn = document.getElementById('btnCopiarPix');
+    const textoOriginal = btn.textContent;
     navigator.clipboard.writeText(compraAtual.pixCopiaECola)
-      .then(() => alert('Código Pix copiado — cole no app do seu banco.'))
-      .catch(() => alert('Não foi possível copiar automaticamente — selecione o texto e copie manualmente.'));
+      .then(() => { btn.textContent = '✓ Copiado!'; })
+      .catch(() => { mostrarErroCompra('Não foi possível copiar automaticamente — selecione o texto e copie manualmente.'); })
+      .finally(() => setTimeout(() => { btn.textContent = textoOriginal; }, 2000));
   }
 
   (async () => {
