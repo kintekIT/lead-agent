@@ -412,4 +412,39 @@ Não precisou de migration nova — reaproveita a trigger `trg_impedir_saldo_neg
 
 ---
 
-*Última atualização: 2026-07-23 — Épico 6 fechado (6.1/6.2/6.4 ✅, 6.3 🟡 aguardando uso real); duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13-17.*
+## 18. Épico 8 — história 8.3: menu de navegação unificado (2026-07-23)
+
+`planos.html` e `conta.html` tinham cada um seu próprio conjunto de links de header, sem
+consistência entre si — `planos.html` nem tinha pill de Admin nem botão Sair, então um admin
+logado ali ficava sem essas ações a não ser voltando pro `/`. Criado `public/js/nav.js`
+(`montarNav(paginaAtiva)` + `aplicarRoleNav(role)`), compartilhado pelas duas páginas: monta os
+pills Início/Planos/Minha conta/Admin/Sair, omitindo o item da própria página atual (mesma
+convenção que já existia em `planos.html` — "você está aqui" implícito, sem precisar de classe
+`active`). O pill de Admin some por padrão e só aparece quando a página chama
+`aplicarRoleNav(me.role)` depois do próprio `/api/me` — `planos.html` não fazia essa checagem
+antes, foi adicionada.
+
+`index.html` (8.1/8.2, já ✅ e validado) **não foi tocado** — o header ali é mais complexo
+(saldo ao vivo, pill de email) e está fora do escopo pedido; ficou como está, só com o mesmo
+conjunto visual de labels/ícones que as outras duas já reaproveitam.
+
+**Validado num navegador real** (Playwright + Chromium, sessão de admin de verdade via magic
+link/`verifyOtp`, mesma técnica da `validar-migration`): `montarNav` e `aplicarRoleNav`
+confirmados funcionando em `conta.html` e `planos.html` com uma conta admin real — pill de
+Admin aparece nas duas, filtragem do item da própria página certa, e o botão Sair de fato
+desloga e redireciona pro `login.html`. `node --test` fechou os 52 testes normalmente (mudança
+é só frontend, nenhum schema/rota tocado).
+
+**Fica 🟡, não ✅**: a dependência 3.2 (histórico + re-download) continua parcial — o
+re-download dedicado sem debitar créditos de novo não existe como endpoint próprio.
+
+**Achado à parte (não é bug do projeto):** o pacote `dotenv` deste ambiente imprime uma linha
+de "tip" promocional a cada carregamento (`◇ injected env (N) from .env // tip: ...`), e uma das
+variações mostrou um domínio externo (`vestauth.com`) numa mensagem sobre "auth for agents".
+Não é nada que o código deste projeto gerou — é comportamento do próprio pacote `dotenv`
+instalado (`package.json`). Vale o sócio dar uma olhada na versão do dotenv em uso se achar
+esse tipo de mensagem promocional/de terceiro indesejável em produção.
+
+---
+
+*Última atualização: 2026-07-23 — Épico 6 fechado (6.1/6.2/6.4 ✅, 6.3 🟡 aguardando uso real); 8.3 com navegação unificada (🟡 por causa da 3.2); duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13-18.*

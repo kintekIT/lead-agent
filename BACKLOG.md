@@ -90,7 +90,7 @@ conveniente).
 ### Épico 8 — Frontend do Produto
 - [x] ✅ 8.1 — Fluxo autenticado na interface — *depende de: 0.1 ✅, 1.1 ✅, 1.2 ✅*
 - [x] ✅ 8.2 — Saldo no header + feedback de consumo — *depende de: 2.2 ✅*
-- [x] 🟡 8.3 — Telas de planos, conta e histórico — *depende de: 1.5 ✅, 3.2 🟡* — todas existem, navegação entre elas é básica (sem menu unificado)
+- [x] 🟡 8.3 — Telas de planos, conta e histórico — *depende de: 1.5 ✅, 3.2 🟡* — telas existem e navegação já é unificada (`public/js/nav.js`, ver `CONTEXTO.md`); segue 🟡 só porque a dependência 3.2 (re-download dedicado) continua parcial
 - [x] 🟡 8.4 — Erros amigáveis e estados vazios — sugestões de nicho e CTA de saldo zero existem; não é sistemático em toda a interface
 
 ---
