@@ -54,6 +54,11 @@ const compraIdParamSchema = z.object({
   id: z.string().uuid('Identificador de compra inválido.'),
 });
 
+// Re-download do Excel de uma busca já concluída (história 3.2) — id da tabela searches
+const buscaIdParamSchema = z.object({
+  id: z.string().uuid('Identificador de busca inválido.'),
+});
+
 // Créditos manuais (história 6.2) — delta != 0 (positivo credita, negativo
 // estorna); limite alto só pra pegar erro de digitação grosseiro (ex.: um
 // zero a mais), a validação de saldo insuficiente pra estornar é do banco.
@@ -79,6 +84,7 @@ module.exports = {
   adminPapelBodySchema,
   compraBodySchema,
   compraIdParamSchema,
+  buscaIdParamSchema,
   adminCreditosBodySchema,
   adminMetricasQuerySchema,
 };

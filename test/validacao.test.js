@@ -3,7 +3,8 @@ const assert = require('node:assert/strict');
 const {
   iniciarBodySchema, previaBodySchema, sessionIdParamSchema,
   adminListQuerySchema, adminUsuarioIdParamSchema, adminPapelBodySchema,
-  compraBodySchema, compraIdParamSchema, adminCreditosBodySchema, adminMetricasQuerySchema,
+  compraBodySchema, compraIdParamSchema, buscaIdParamSchema,
+  adminCreditosBodySchema, adminMetricasQuerySchema,
 } = require('../src/validation/schemas');
 const { validar } = require('../src/middleware/validar');
 
@@ -56,6 +57,12 @@ test('compraBodySchema aceita só os pacotes conhecidos', () => {
 test('compraIdParamSchema exige um uuid válido', () => {
   assert.equal(compraIdParamSchema.safeParse({ id: '3fa85f64-5717-4562-b3fc-2c963f66afa6' }).success, true);
   assert.equal(compraIdParamSchema.safeParse({ id: '../../etc/passwd' }).success, false);
+});
+
+test('buscaIdParamSchema exige um uuid válido', () => {
+  assert.equal(buscaIdParamSchema.safeParse({ id: '3fa85f64-5717-4562-b3fc-2c963f66afa6' }).success, true);
+  assert.equal(buscaIdParamSchema.safeParse({ id: '../../etc/passwd' }).success, false);
+  assert.equal(buscaIdParamSchema.safeParse({ id: '' }).success, false);
 });
 
 test('sessionIdParamSchema aceita o formato gerado pelo servidor', () => {

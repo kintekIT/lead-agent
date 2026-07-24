@@ -4,6 +4,7 @@ iniciarSentry(); // história 5.3 — antes de tudo, pra capturar erro em qualqu
 
 const express = require('express');
 const path    = require('path');
+const fs      = require('fs');
 const { executarAgente }  = require('./agent');
 const { executarRPA }     = require('./rpa');
 const { executarReceita } = require('./executor-receita');
@@ -17,7 +18,8 @@ const { logger } = require('./utils/logger');
 const {
   iniciarBodySchema, previaBodySchema, sessionIdParamSchema,
   adminListQuerySchema, adminUsuarioIdParamSchema, adminPapelBodySchema,
-  compraBodySchema, compraIdParamSchema, adminCreditosBodySchema, adminMetricasQuerySchema,
+  compraBodySchema, compraIdParamSchema, buscaIdParamSchema,
+  adminCreditosBodySchema, adminMetricasQuerySchema,
 } = require('./validation/schemas');
 const { tamanhoPool } = require('./config/pool-dedup');
 const { PACOTES } = require('./config/pacotes-creditos');
@@ -246,6 +248,28 @@ app.get('/api/download/:id', validar(sessionIdParamSchema, 'params'), (req, res)
     return res.status(404).json({ erro: 'Arquivo não encontrado.' });
   }
   res.download(sessao.arquivo);
+});
+
+/* ── GET /api/buscas/:id/download ── re-download do Excel de uma busca já concluída,
+   sem debitar créditos de novo (história 3.2) — usa searches.arquivo, que sobrevive
+   ao fim da sessão em memória (diferente de /api/download/:id acima). */
+app.get('/api/buscas/:id/download', validar(buscaIdParamSchema, 'params'), async (req, res) => {
+  const { data: busca, error } = await supabaseAdmin
+    .from('searches')
+    .select('user_id, status, arquivo')
+    .eq('id', req.params.id)
+    .single();
+
+  if (error || !busca || busca.user_id !== req.usuario.id) {
+    return res.status(404).json({ erro: 'Busca não encontrada.' });
+  }
+  if (busca.status !== 'concluida' || !busca.arquivo) {
+    return res.status(404).json({ erro: 'Essa busca não tem um arquivo pronto para download.' });
+  }
+  if (!fs.existsSync(busca.arquivo)) {
+    return res.status(404).json({ erro: 'O arquivo original não está mais disponível no servidor.' });
+  }
+  res.download(busca.arquivo);
 });
 
 /* ── GET /api/pacotes ── pacotes de créditos disponíveis (história 2.5) */
