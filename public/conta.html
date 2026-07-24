@@ -74,12 +74,7 @@
       <div class="brand-icon">⚡</div>
       <h1>Minha Conta</h1>
     </div>
-    <div class="header-actions">
-      <a class="pill" href="/">← Voltar ao app</a>
-      <a class="pill" href="/planos.html">Comprar créditos</a>
-      <a class="pill" href="/admin.html" title="Painel Admin" id="pillAdmin" style="display:none">🛠️ Admin</a>
-      <button class="pill" onclick="sair()">Sair</button>
-    </div>
+    <nav class="header-actions" id="navMenu"></nav>
   </header>
 
   <!-- Dados da conta (história 1.5) -->
@@ -110,6 +105,7 @@
 <script src="/config.js"></script>
 <script src="/vendor/supabase.js"></script>
 <script src="/js/auth.js"></script>
+<script src="/js/nav.js"></script>
 <script>
   const fmtData = (iso) => iso ? new Date(iso).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
   const fmtDataHora = (iso) => iso ? new Date(iso).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
@@ -163,6 +159,8 @@
     const session = await exigirSessao();
     if (!session) return;
 
+    montarNav('conta');
+
     // Dados do /api/me (backend calcula plano e saldo)
     try {
       const me = await (await authFetch('/api/me')).json();
@@ -173,7 +171,7 @@
       tag.textContent = plano;
       tag.className = `plano-tag ${plano}`;
       document.getElementById('cSaldo').innerHTML = `${me.saldo}<small>1 crédito = 1 lead</small>`;
-      if (me.role === 'admin') document.getElementById('pillAdmin').style.display = '';
+      aplicarRoleNav(me.role);
     } catch {}
 
     carregarExtrato();
