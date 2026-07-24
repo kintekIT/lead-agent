@@ -92,17 +92,22 @@
     .periodo-select { -webkit-appearance:none; appearance:none; }
     .stat-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:14px; margin-bottom:22px; }
     .stat-tile {
-      background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:14px 16px;
+      background:rgba(255,255,255,.035); border:1px solid var(--border2);
+      border-left:3px solid var(--acento, var(--blue-dark));
+      border-radius:8px; padding:14px 16px 14px 13px;
     }
-    .stat-tile .k { font-size:11px; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
-    .stat-tile .v { font-size:26px; font-weight:600; letter-spacing:-.5px; font-variant-numeric:proportional-nums; }
+    .stat-tile .k { font-size:11px; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
+    .stat-tile .v { font-size:28px; font-weight:600; letter-spacing:-.5px; font-variant-numeric:proportional-nums; color:var(--text); }
     .stat-tile .v.creditos-vendidos { color:var(--green); }
     .stat-tile .v.creditos-consumidos { color:var(--blue); }
     .grafico-linha { margin-bottom:22px; }
     .grafico-linha .subtitulo { margin-top:0; }
-    .barras-svg { width:100%; height:120px; display:block; }
+    .barras-svg { width:100%; height:140px; display:block; }
     .barras-svg rect { transition:opacity .12s; }
     .barras-svg rect:hover { opacity:.75; }
+    .barras-fundo { fill:rgba(255,255,255,.025); }
+    .barras-grid { stroke:rgba(255,255,255,.08); stroke-width:1; shape-rendering:crispEdges; }
+    .barras-base { stroke:rgba(255,255,255,.16); stroke-width:1; shape-rendering:crispEdges; }
     .barras-eixo { font-size:10px; fill:var(--text2); }
     .nichos-grid { display:grid; grid-template-columns:1fr; gap:6px; }
     .nicho-linha { display:grid; grid-template-columns:140px 1fr 40px; align-items:center; gap:10px; font-size:12.5px; }
@@ -380,36 +385,69 @@
     }
   }
 
+  // A RPC só devolve os dias que tiveram alguma linha (jsonb_agg de um
+  // group by) — plotar por índice do array faz dias sem dado "sumirem" e
+  // os poucos pontos restantes ficarem espalhados com buracos enormes entre
+  // eles (não é uma escala de tempo de verdade). Preenche os dias faltantes
+  // com 0 pra virar uma série contínua de `dias` pontos.
+  function preencherSerieDiaria(pontos, dias) {
+    const porDia = new Map(pontos.map(p => [p.dia, p.total]));
+    const hoje = new Date();
+    const hojeUTC = Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), hoje.getUTCDate());
+    const serie = [];
+    for (let i = dias - 1; i >= 0; i--) {
+      const iso = new Date(hojeUTC - i * 86400000).toISOString().slice(0, 10);
+      serie.push({ dia: iso, total: porDia.get(iso) ?? 0 });
+    }
+    return serie;
+  }
+
   // Barras verticais em SVG puro (história 6.4) — sem lib de gráfico, seguindo
   // as specs do design system: coluna ≤24px, topo arredondado 4px, base
   // quadrada, rótulo de eixo só no primeiro/último ponto (nunca em todos).
-  function renderBarrasColuna(pontos, cor) {
-    const W = 600, H = 110, EIXO_H = 16;
+  // Fundo da área de plotagem + gridlines pra não ficar "flutuando" no
+  // preto (o problema visual original: sem nada ancorando as barras, a
+  // tela vira um vazio escuro com uns tracinhos coloridos perdidos nele).
+  function renderBarrasColuna(pontosOriginais, cor, dias) {
+    const pontos = preencherSerieDiaria(pontosOriginais, dias);
+    const W = 600, H = 130, PAD_L = 30, PAD_R = 4, EIXO_H = 18;
     const areaH = H - EIXO_H;
+    const areaW = W - PAD_L - PAD_R;
     const max = Math.max(1, ...pontos.map(p => p.total));
+    const maxArredondado = max <= 5 ? max : Math.ceil(max / 5) * 5; // teto "redondo" pra gridline de cima
     const n = Math.max(1, pontos.length);
-    const slotW = W / n;
-    const barW = Math.min(24, slotW * 0.6);
+    const slotW = areaW / n;
+    const barW = Math.min(24, slotW * 0.7);
+
+    const y = (valor) => areaH - (valor / maxArredondado) * (areaH - 4);
 
     const barras = pontos.map((p, i) => {
-      const barH = Math.round((p.total / max) * (areaH - 6));
-      const x = i * slotW + (slotW - barW) / 2;
-      const y = areaH - barH;
-      const r = Math.min(4, barH); // não deixa o cantinho arredondado "vazar" em barras baixinhas
+      const barTopo = y(p.total);
+      const barH = Math.max(areaH - barTopo, p.total > 0 ? 2 : 0);
+      const x = PAD_L + i * slotW + (slotW - barW) / 2;
+      const yTopo = areaH - barH;
+      const r = Math.min(4, barH);
       return `<g>
         <title>${esc(fmtData(p.dia))} — ${p.total}</title>
-        <rect x="${x.toFixed(1)}" y="${y}" width="${barW.toFixed(1)}" height="${Math.max(barH, 1)}" rx="${r}" ry="${r}" fill="${cor}" />
+        <rect x="${x.toFixed(1)}" y="${yTopo.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="${r}" ry="${r}" fill="${cor}" />
         ${r > 0 ? `<rect x="${x.toFixed(1)}" y="${(areaH - r).toFixed(1)}" width="${barW.toFixed(1)}" height="${r}" fill="${cor}" />` : ''}
       </g>`;
     }).join('');
 
-    const rotuloIni = pontos.length ? fmtData(pontos[0].dia) : '';
-    const rotuloFim = pontos.length ? fmtData(pontos[pontos.length - 1].dia) : '';
+    const rotuloIni = fmtData(pontos[0].dia);
+    const rotuloFim = fmtData(pontos[pontos.length - 1].dia);
+    const meio = Math.round(maxArredondado / 2);
 
     return `<svg class="barras-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <rect class="barras-fundo" x="${PAD_L}" y="0" width="${areaW}" height="${areaH}" rx="6" />
+      <line class="barras-grid" x1="${PAD_L}" y1="${y(meio).toFixed(1)}" x2="${W - PAD_R}" y2="${y(meio).toFixed(1)}" />
+      <line class="barras-base" x1="${PAD_L}" y1="${areaH}" x2="${W - PAD_R}" y2="${areaH}" />
+      <text class="barras-eixo" x="${PAD_L - 6}" y="4" text-anchor="end" dominant-baseline="hanging">${maxArredondado}</text>
+      <text class="barras-eixo" x="${PAD_L - 6}" y="${y(meio).toFixed(1)}" text-anchor="end" dominant-baseline="middle">${meio}</text>
+      <text class="barras-eixo" x="${PAD_L - 6}" y="${areaH}" text-anchor="end" dominant-baseline="middle">0</text>
       ${barras}
-      <text x="2" y="${H - 3}" class="barras-eixo">${esc(rotuloIni)}</text>
-      <text x="${W - 2}" y="${H - 3}" class="barras-eixo" text-anchor="end">${esc(rotuloFim)}</text>
+      <text class="barras-eixo" x="${PAD_L}" y="${H - 3}">${esc(rotuloIni)}</text>
+      <text class="barras-eixo" x="${W - PAD_R}" y="${H - 3}" text-anchor="end">${esc(rotuloFim)}</text>
     </svg>`;
   }
 
@@ -436,21 +474,21 @@
 
     document.getElementById('metricasWrap').innerHTML = `
       <div class="stat-grid">
-        <div class="stat-tile"><div class="k">Novos usuários (${m.periodoDias}d)</div><div class="v">${compactar(totalUsuarios)}</div></div>
-        <div class="stat-tile"><div class="k">Buscas (${m.periodoDias}d)</div><div class="v">${compactar(totalBuscas)}</div></div>
-        <div class="stat-tile"><div class="k">Créditos vendidos</div><div class="v creditos-vendidos">${compactar(m.creditosVendidos)}</div></div>
-        <div class="stat-tile"><div class="k">Créditos consumidos</div><div class="v creditos-consumidos">${compactar(m.creditosConsumidos)}</div></div>
-        <div class="stat-tile"><div class="k">Trial → compra (vitalício)</div><div class="v">${taxaConversao}</div></div>
+        <div class="stat-tile" style="--acento:var(--blue)"><div class="k">Novos usuários (${m.periodoDias}d)</div><div class="v">${compactar(totalUsuarios)}</div></div>
+        <div class="stat-tile" style="--acento:var(--green)"><div class="k">Buscas (${m.periodoDias}d)</div><div class="v">${compactar(totalBuscas)}</div></div>
+        <div class="stat-tile" style="--acento:var(--green)"><div class="k">Créditos vendidos</div><div class="v creditos-vendidos">${compactar(m.creditosVendidos)}</div></div>
+        <div class="stat-tile" style="--acento:var(--blue)"><div class="k">Créditos consumidos</div><div class="v creditos-consumidos">${compactar(m.creditosConsumidos)}</div></div>
+        <div class="stat-tile" style="--acento:var(--orange)"><div class="k">Trial → compra (vitalício)</div><div class="v">${taxaConversao}</div></div>
       </div>
 
       <div class="grafico-linha">
         <div class="subtitulo">Novos usuários por dia</div>
-        ${m.novosUsuariosPorDia.length ? renderBarrasColuna(m.novosUsuariosPorDia, 'var(--blue)') : '<div class="vazio">Sem novos usuários no período.</div>'}
+        ${renderBarrasColuna(m.novosUsuariosPorDia, 'var(--blue)', m.periodoDias)}
       </div>
 
       <div class="grafico-linha">
         <div class="subtitulo">Buscas por dia</div>
-        ${m.buscasPorDia.length ? renderBarrasColuna(m.buscasPorDia, 'var(--green)') : '<div class="vazio">Nenhuma busca no período.</div>'}
+        ${renderBarrasColuna(m.buscasPorDia, 'var(--green)', m.periodoDias)}
       </div>
 
       <div class="subtitulo">Nichos mais buscados</div>
