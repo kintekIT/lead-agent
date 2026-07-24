@@ -533,4 +533,44 @@ o volume justifica.
 
 ---
 
-*Última atualização: 2026-07-24 — Épico 6 fechado (6.1/6.2/6.4 ✅, 6.3 🟡 aguardando uso real); 3.2 e 8.3 fechados ✅; 4.3 parcial (rate limit por usuário ✅, antifraude do trial depende de config do dashboard Supabase); duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13-20.*
+## 21. Épico 4 — história 4.4: acesso cruzado bloqueado por RLS, validado contra o banco real (2026-07-24)
+
+Não teve código novo — o RLS já estava correto desde a fundação (histórias 0.2/1.4): cada
+tabela sensível (`profiles`, `credit_ledger`, `searches`, `purchases`, `delivered_leads`) só tem
+policy de `select` com `using (auth.uid() = user_id)` (ou `= id` em `profiles`), sem nenhuma
+policy de insert/update/delete pra `authenticated` — só o `service_role` (que o backend usa)
+escreve. Faltava só a prova de que isso segura na prática, com contas reais, não só lendo o SQL.
+
+**Metodologia** (duas contas reais via magic link, cliente anon autenticado como cada uma —
+mesma técnica da `validar-migration`): logado como `guh.712@hotmail.com` (conta A), tentei ler e
+escrever dados de `kintekit@gmail.com` (conta B, que **tem** linhas reais em `credit_ledger` e
+`searches`, confirmado via `service_role` antes do teste — pra não validar contra uma tabela
+vazia e ter falso positivo).
+
+- **Leitura cruzada bloqueada** em todas as 5 tabelas: `profiles`, `credit_ledger`, `searches`,
+  `purchases`, `delivered_leads` — filtrando explicitamente por `user_id = <id de B>` sempre
+  voltou 0 linhas pro cliente de A, mesmo com B tendo dado real nas duas primeiras. Um
+  `select('*')` sem filtro em `profiles` também nunca trouxe a linha de B — RLS filtra
+  silenciosamente, não é um erro, é como se a linha não existisse pro cliente de A.
+- **Escrita cruzada bloqueada**: tentativa de `INSERT` direto em `credit_ledger` (bypassando o
+  backend) foi **rejeitada com erro explícito do Postgres** ("new row violates row-level
+  security policy"). Tentativa de `UPDATE role='admin'` na linha de B em `profiles` **não deu
+  erro, mas afetou 0 linhas** — achado importante do processo: a primeira rodada do teste só
+  checava `error === null` e reportou falso positivo ("PASSOU!"), porque RLS filtra o `UPDATE`
+  como se a linha não existisse — sem erro, sem linha afetada. Corrigido encadeando `.select()`
+  no `.update()` pra inspecionar as linhas realmente afetadas (`dataUpdate: []`, confirmando
+  bloqueio de verdade). **Lição pra qualquer teste de RLS futuro**: nunca confiar só em
+  `error === null` num update/delete pra provar que "passou" — sempre conferir o array de linhas
+  afetadas, porque RLS nega por filtragem silenciosa, não por exceção.
+
+Nenhum dado real foi alterado (a tentativa de promoção de B não teve efeito, e B já era admin
+antes — sem side-effect de qualquer forma). Scripts de validação eram só ad-hoc (mesmo padrão de
+`validar-migration`), removidos depois — não fica um teste permanente em `test/*.test.js` porque
+depende de credenciais reais e duas contas existentes no banco, o que não cabe no `node --test`
+padrão (que roda offline, sem rede).
+
+**Fecha a história como ✅.**
+
+---
+
+*Última atualização: 2026-07-24 — Épico 6 fechado (6.1/6.2/6.4 ✅, 6.3 🟡 aguardando uso real); 3.2, 8.3 e 4.4 fechados ✅; 4.3 parcial (rate limit por usuário ✅, antifraude do trial depende de config do dashboard Supabase); duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13-21.*
