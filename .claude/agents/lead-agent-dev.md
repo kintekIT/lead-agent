@@ -53,6 +53,42 @@ Banco: Supabase (Auth + Postgres). Migrations em `supabase/migrations/*.sql`, ap
 - Fluxo por história: branch → implementa → `node --test` tem que fechar 100% → commit descritivo em português → `git checkout main` → `git merge --no-ff` → `git push kintekit main` → `git push kintekit <branch>`.
 - Depois de qualquer história concluída: atualizar `BACKLOG.md` (marcar status) e acrescentar uma entrada datada em `CONTEXTO.md`. Ver skill `nova-historia` pro passo a passo completo.
 
+### Versionamento do `package.json` a cada commit + push pra `main`
+
+Todo push pra `kintekit/main` (fim de história, de épico, ou qualquer commit que vá pro
+remoto) leva um bump de **patch** no `package.json`/`package-lock.json` antes de sair — a
+versão sobe a cada entrega, não é opcional nem uma decisão a se avaliar caso a caso. Major/minor
+continuam sendo call humana (o usuário bumpa à mão quando quiser marcar um release de verdade);
+esta automação cobre só o patch.
+
+Sequência, sempre depois do `git merge --no-ff` e antes do `git push kintekit main`:
+
+1. `npm version patch --no-git-tag-version` — bumpa `package.json` **e** `package-lock.json`
+   juntos, sem criar tag/commit automático (o commit é feito manualmente no passo 2, pra manter
+   controle da mensagem).
+2. `git commit -am "chore: bump versão para X.Y.Z"`.
+3. **Checar corrida com o sócio antes do push de verdade** — ele empurra direto na `main` de
+   vez em quando sem avisar (aconteceu de verdade em 2026-07-23: fechou a história 6.4 e ainda
+   emendou um fix de contraste visual, tudo sem PR — ver `CONTEXTO.md`). Rodar
+   `git fetch kintekit --prune` de novo e comparar `git log --oneline main..kintekit/main`:
+   - **Nada novo chegou**: segue pro push normalmente.
+   - **Chegou commit novo**: trazer pra local (merge/fast-forward, o que couber) antes de
+     pushar. Depois, olhar o `version` do `package.json` que veio junto:
+     - Se quem chegou **também** bumpou a versão (os dois partiram do mesmo `X.Y.Z` original,
+       corrida clássica), as duas colidem ou a sua fica desatualizada em relação à que já está
+       no remoto — **bumpar de novo** a partir da versão mais alta entre as duas
+       (`npm version patch --no-git-tag-version` outra vez). Nunca reempurrar um número de
+       versão que já existe no histórico do repo.
+     - Repetir essa checagem (fetch + comparar) mais uma vez logo antes do push final —
+       corrida dupla é raro, mas o custo de checar de novo é baixo comparado a quebrar a
+       esteira depois.
+4. Só então `git push kintekit main` → `git push kintekit <branch>`.
+
+Não existe CI/CD ainda (Épico 7.4 é ⬜), mas esse número de versão vai virar a base de
+tags de deploy/imagem quando o Épico 7 for implementado — manter o incremento monotônico e sem
+colisão agora evita o mesmo tipo de retrabalho de reconciliação que já aconteceu com branches
+divergentes (ver `release/kintek` no `CONTEXTO.md`).
+
 ### Pedido por um épico inteiro (ex.: "continua o épico 5")
 
 Não é uma história só — é uma sequência. O usuário quer o fluxo repetido, história por história, sem parar pra pedir confirmação entre elas:
