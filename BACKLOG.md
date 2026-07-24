@@ -75,7 +75,7 @@ conveniente).
 - [x] ✅ 6.1 — Gestão de usuários — *depende de: 0.3 ✅, 1.4 ✅* — lista com busca por email + paginação, detalhe (saldo/extrato/buscas), bloquear/desbloquear (`supabaseAdmin.auth.admin.updateUserById`) e alterar papel, tudo em `public/admin.html` + rotas `GET/POST/PATCH /api/admin/usuarios*`. Reconciliada 3x contra a main enquanto os Épicos 2.5 e 5 avançavam em paralelo — nenhum conflito de lógica, só imports/headers concatenados.
 - [x] ✅ 6.2 — Créditos manuais (atribuir/estornar) — *depende de: 2.2 ✅, 5.4 ✅* — formulário no `admin.html` (delta +/-, motivo obrigatório), `POST /api/admin/usuarios/:id/creditos` grava em `credit_ledger` (motivo `ajuste`) e audita em `events` (`ajuste_credito`, com delta/motivo nos metadados). Validado de ponta a ponta contra o banco real: crédito, estorno, trava de saldo insuficiente (409, via `trg_impedir_saldo_negativo` da história 2.3) e evento de auditoria gravado
 - [x] 🟡 6.3 — Fila de confirmação de compras Pix — *depende de: 2.5 🟡* — UI em `public/admin.html` (tabela com email/pacote/valor/prazo, botão Confirmar) + expiração automática de 48h (`expirarComprasPendentes()`, roda antes de qualquer leitura de compras). Falta só teste ponta a ponta com uma compra pendente de verdade (nenhuma existe no banco agora) — a query com join `profiles(email)` e o `UPDATE` de expiração já rodaram contra o banco real sem erro, e já existe conta admin real pra testar (5.4/6.1)
-- [x] 🟡 6.4 — Métricas do negócio — *depende de: 5.4 ✅* — código pronto (`GET /api/admin/metricas`, função `metricas_negocio()` no Postgres, painel com stat tiles + gráfico de barras + ranking de nichos em `admin.html`), mas a migration `20260723170000_metricas_negocio.sql` **ainda não foi aplicada no banco real** — confirmado rodando a RPC agora e recebendo `PGRST202` (função não existe no schema cache). Colar no SQL Editor antes de considerar pronta
+- [x] ✅ 6.4 — Métricas do negócio — *depende de: 5.4 ✅* — migration `20260723170000_metricas_negocio.sql` aplicada pelo sócio; validada de ponta a ponta com token de admin real (`GET /api/admin/metricas` responde 200 com dados de verdade: 3 trials, 47 créditos consumidos, "Academia" é o nicho mais buscado). Painel com stat tiles + gráfico de barras (novos usuários/dia, buscas/dia) + ranking de nichos em `admin.html`
 
 ## Fase 4 — Produção
 
@@ -100,12 +100,10 @@ conveniente).
 - **Resend sem domínio verificado**: só entrega e-mail pro dono da própria conta (`kintekit@gmail.com`). Cadastro de qualquer outro usuário falha com 500 até resolver (verificar domínio, ou desativar SMTP customizado temporariamente, ou desligar "Confirm email" em dev). Achado em 2026-07-23.
 - **Preços dos pacotes de crédito são placeholder** (`src/config/pacotes-creditos.js`) — decisão de negócio dos sócios, não validar como definitivo.
 - **Migrations aplicadas manualmente**: não há credencial de banco direta neste ambiente de dev, só chaves de API — toda migration nova precisa ser colada no SQL Editor do dashboard Supabase por um humano. Ver `supabase/README.md` para a lista em ordem.
-- **Migration da 6.4 pendente de aplicar** (`supabase/migrations/20260723170000_metricas_negocio.sql`): sem ela, `GET /api/admin/metricas` e a aba "Métricas do negócio" do `admin.html` respondem/mostram erro (`PGRST202` — função não existe no schema cache, confirmado em 2026-07-23). Colar no SQL Editor (https://supabase.com/dashboard/project/bafsvszjpztbmbhmcwqk/sql/new) → Run. Depois, validar com a skill `validar-migration` e marcar 6.4 como ✅ aqui e no CONTEXTO.md.
 
 ## Próximos passos sugeridos (na ordem que fazem mais sentido)
 
 1. Resolver a pendência do Resend (bloqueia testar cadastro de usuários reais)
 2. Configurar `PIX_CHAVE` real (fecha o Épico 2 de vez)
-3. Aplicar a migration da 6.4 (métricas) — é só colar no SQL Editor, ver acima
-4. Ver uma compra Pix de verdade passar pela fila (fecha a 6.3)
-5. Épico 7 (deploy) — Épico 6 já está pronto em código; falta só as duas validações acima antes de ir pra produção
+3. Ver uma compra Pix de verdade passar pela fila (fecha a 6.3 — Épico 6 inteiro ✅ depois disso)
+4. Épico 7 (deploy) — Épico 6 já está fechado em código e validado; falta só a validação acima antes de ir pra produção
