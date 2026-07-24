@@ -24,6 +24,21 @@ const limiteApi = rateLimit({
   message: { erro: 'Muitas requisições. Aguarde um minuto e tente novamente.' },
 });
 
+// Segunda barreira (história 4.3): limite por usuário autenticado, não por IP.
+// Cobre o caso que o limite acima não cobre — um único usuário automatizando
+// chamadas de IPs diferentes (proxy/VPN) ainda esbarra aqui, porque a chave é
+// req.usuario.id em vez do IP. Aplicado só nas rotas caras (geram leads de
+// verdade / batem no motor de busca), depois do middleware `autenticar`
+// (precisa de req.usuario já preenchido).
+const limitePorUsuario = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.usuario.id,
+  message: { erro: 'Muitas buscas em pouco tempo nesta conta. Aguarde um minuto e tente novamente.' },
+});
+
 // O frontend (public/index.html) usa <script> inline e atributos onclick="".
 // O CSP padrão do helmet bloqueia os dois (script-src 'self' sem
 // 'unsafe-inline', script-src-attr 'none'), o que derruba silenciosamente
@@ -47,4 +62,4 @@ const helmetMiddleware = helmet({
   },
 });
 
-module.exports = { helmetMiddleware, corsMiddleware, limiteApi, APP_ORIGIN };
+module.exports = { helmetMiddleware, corsMiddleware, limiteApi, limitePorUsuario, APP_ORIGIN };
