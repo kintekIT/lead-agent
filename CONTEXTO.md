@@ -447,4 +447,54 @@ esse tipo de mensagem promocional/de terceiro indesejável em produção.
 
 ---
 
-*Última atualização: 2026-07-23 — Épico 6 fechado (6.1/6.2/6.4 ✅, 6.3 🟡 aguardando uso real); 8.3 com navegação unificada (🟡 por causa da 3.2); duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13-18.*
+## 19. Épico 3 — história 3.2: re-download do histórico sem debitar créditos (2026-07-24)
+
+A tabela `searches` já grava o caminho do Excel gerado (coluna `arquivo`, desde a migration
+fundacional `20260714120000`) — só faltava uma rota que servisse esse arquivo de novo. O
+caminho existente (`GET /api/download/:id`) depende do `Map` `sessoes` em memória (`server.js`),
+que morre quando a sessão SSE original termina ou o servidor reinicia — não dava pra reaproveitar
+pra um "baixar de novo" dias depois.
+
+**Nova rota** `GET /api/buscas/:id/download` (schema novo `buscaIdParamSchema`, uuid): busca a
+linha em `searches`, confere `user_id === req.usuario.id` (senão 404 — mesmo padrão de
+`/api/download/:id`), confere `status === 'concluida'` e `arquivo` preenchido, confere
+`fs.existsSync(arquivo)` (arquivos antigos podem ter sido limpos manualmente — história 7.5 de
+limpeza automática ainda não existe) e só então `res.download(arquivo)`. Nunca chama a RPC
+`entregar_leads` nem grava em `credit_ledger` — é leitura pura, sem custo.
+
+**Frontend** (`conta.html`): o histórico de buscas passou a selecionar `id` e `arquivo` também;
+linhas com `status === 'concluida' && arquivo` ganham um botão "⬇ Baixar" que chama
+`baixarNovamente(id)` — mesmo padrão `?token=` na URL que o app principal já usa pra download
+(`window.location.href`, porque não dá pra mandar header `Authorization` numa navegação direta).
+
+**Validado contra o banco e servidor reais** (Playwright + Chromium, sessão de admin via magic
+link): (1) tentei rodar uma busca nova de ponta a ponta pra testar o caminho feliz "de verdade",
+mas esse ambiente de dev **não tem o `receita.db` local** (motor Receita Federal falha
+silenciosamente sem ele — achado novo, vale registrar pro Épico 7: o deploy real precisa desse
+arquivo, ver história 7.2) — as duas tentativas de busca ficaram com `status: 'erro'` no banco e
+foram removidas do histórico do usuário depois do teste, pra não sujar dado real. (2) Pivotei pra
+validar a rota isoladamente: criei uma linha `searches` sintética (`service_role`) apontando pra
+um arquivo `.xlsx` dummy real em disco — confirmado hostname 200, `Content-Disposition` correto,
+bytes batendo, e **saldo de créditos idêntico antes/depois do download** (sem debitar). Testei
+também acesso cruzado (outro usuário tentando baixar a busca do primeiro → 404), arquivo apagado
+do disco depois de gravado no banco → 404 com mensagem amigável, e id inexistente → 404. Botão
+"⬇ Baixar" clicado de verdade no navegador (evento `download` do Playwright disparou com o nome
+de arquivo certo). Linha de teste e arquivo dummy removidos do banco/disco ao final — nenhum
+dado sintético ficou pra trás.
+
+`node --test` fechou 53/53 depois da mudança (schema novo `buscaIdParamSchema` com teste
+dedicado). Sem migration — a coluna `arquivo` já existia.
+
+**Fecha a história como ✅** (não mais 🟡) — e como a 8.3 só ficava 🟡 por depender desta,
+**a 8.3 também fecha ✅** na mesma sessão.
+
+**Achado à parte, pra registrar de qualquer forma (não bloqueia nada agora, mas é relevante pro
+Épico 7):** este ambiente de dev não tem `receita.db` — qualquer busca real com `modo: 'receita'`
+falha. As buscas reais que já existem no histórico do banco (usadas de referência nas histórias
+6.4/8.3) foram geradas em outro ambiente/sessão que tinha o arquivo. Vale confirmar que o
+`receita.db` está no lugar certo antes de rodar smoke tests de busca real neste dev machine, ou
+que a história 7.2 (deploy + upload do `receita.db`) cobre isso pra produção.
+
+---
+
+*Última atualização: 2026-07-24 — Épico 6 fechado (6.1/6.2/6.4 ✅, 6.3 🟡 aguardando uso real); 3.2 e 8.3 fechados ✅ (re-download + navegação unificada); duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13-19.*

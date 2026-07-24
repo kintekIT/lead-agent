@@ -51,7 +51,7 @@ conveniente).
 
 ### Épico 3 — Motor & Regras de Negócio
 - [x] ✅ 3.1 — Dedup de leads por usuário (janela de 6 meses) — *depende de: 0.2 ✅, 0.3 ✅* — feito junto com 2.3
-- [x] 🟡 3.2 — Histórico de buscas + re-download — *depende de: 0.2 ✅* — listagem existe (`conta.html`), re-download dedicado sem debitar de novo não foi construído como endpoint próprio
+- [x] ✅ 3.2 — Histórico de buscas + re-download — *depende de: 0.2 ✅* — `GET /api/buscas/:id/download` reaproveita `searches.arquivo` (já existia desde a migration fundacional), valida dono + status + arquivo em disco, nunca chama a RPC de entrega — sem custo de crédito. Botão "⬇ Baixar" em `conta.html` só aparece pra buscas concluídas. Validado de ponta a ponta contra o banco e servidor reais (ver `CONTEXTO.md`)
 - [x] ✅ 3.3 — Expansão do dicionário de sinônimos CNAE
 - [x] ✅ 3.4 — Qualidade dos resultados (matriz, telefone-lixo, email genérico, colunas extras)
 
@@ -90,7 +90,7 @@ conveniente).
 ### Épico 8 — Frontend do Produto
 - [x] ✅ 8.1 — Fluxo autenticado na interface — *depende de: 0.1 ✅, 1.1 ✅, 1.2 ✅*
 - [x] ✅ 8.2 — Saldo no header + feedback de consumo — *depende de: 2.2 ✅*
-- [x] 🟡 8.3 — Telas de planos, conta e histórico — *depende de: 1.5 ✅, 3.2 🟡* — telas existem e navegação já é unificada (`public/js/nav.js`, ver `CONTEXTO.md`); segue 🟡 só porque a dependência 3.2 (re-download dedicado) continua parcial
+- [x] ✅ 8.3 — Telas de planos, conta e histórico — *depende de: 1.5 ✅, 3.2 ✅* — telas existem, navegação unificada (`public/js/nav.js`) e a 3.2 (dependência que faltava) fechou na mesma sessão
 - [x] 🟡 8.4 — Erros amigáveis e estados vazios — sugestões de nicho e CTA de saldo zero existem; não é sistemático em toda a interface
 
 ---
