@@ -1,0 +1,6 @@
+# Scripts e configs de deploy rodam em Linux — força LF mesmo em checkout
+# no Windows, senão um scp/rsync feito daqui gera CRLF e quebra o shebang
+# ("bad interpreter") no VPS.
+deploy/*.sh text eol=lf
+deploy/Caddyfile text eol=lf
+.github/workflows/*.yml text eol=lf
