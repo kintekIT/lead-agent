@@ -665,7 +665,69 @@ ainda novas).
 
 ---
 
-*Última atualização: 2026-07-25 — MCP do Supabase conectado e documentado; bug crítico de
-`confirmar_compra` exposto ao role `anon` achado e corrigido em produção (seção 23); leaked
-password protection bloqueada pelo plano Free (pendência de negócio, não técnica); ver seções
-13-23 pro histórico recente.*
+## 24. Épico 7 — Infraestrutura & Deploy: código/scripts prontos, sem VPS real ainda (2026-07-25)
+
+Implementadas as 6 histórias do Épico 7 (7.1-7.6) numa sequência só, seguindo o fluxo padrão
+(branch por história → commit → merge na `main`). **Nenhuma foi validada contra infraestrutura
+real** — não existe VPS nem domínio contratado neste momento; tudo em `deploy/` (script +
+`deploy/README.md`, o guia mestre) foi escrito, revisado e teve a sintaxe checada (`bash -n` nos
+`.sh`), mas o "golden path" de verdade só acontece quando alguém provisionar um servidor de
+verdade e seguir o guia. Marcadas 🟡 no `BACKLOG.md`, não ✅, por isso.
+
+- **7.1** — `deploy/setup-vps.sh`: usuário `deploy` sudo sem senha de root, SSH só por chave
+  (sem root remoto, sem senha), UFW (22/80/443), fail2ban, `unattended-upgrades`, timezone
+  `America/Sao_Paulo`, swap de 2GB (ajuda o `npm install` do `better-sqlite3` e o import da
+  Receita, pesados de memória), Node LTS + `pm2`.
+- **7.2** — `deploy/ecosystem.config.js` (pm2) + `deploy/deploy.sh` (`git pull` + `npm ci` +
+  `pm2 reload`, zero-downtime). Guia de transferência do `data/receita.db` (~10,7GB) via `rsync
+  --partial` (retomável, não recomeça do zero se cair a conexão — importante pra um arquivo
+  desse tamanho).
+- **7.3** — `deploy/Caddyfile` (reverse proxy + HTTPS automático via Let's Encrypt, sem
+  `certbot`/cron manual). **Achado durante a implementação, corrigido junto:** `src/server.js`
+  não tinha `app.set('trust proxy', ...)` — atrás de um reverse proxy, o `express-rate-limit`
+  (histórias 4.1/4.3) veria todo mundo vindo do IP do próprio Caddy, quebrando o rate limit por
+  IP/usuário silenciosamente assim que fosse pra produção. Corrigido com `app.set('trust proxy',
+  1)` (confia só no primeiro hop — o Caddy no mesmo VPS — nunca numa cadeia de
+  `X-Forwarded-For` vinda do cliente, o que deixaria o cliente falsificar o próprio IP). Testes
+  (`node --test`) seguiram 54/54 depois da mudança.
+- **7.4** — `.github/workflows/deploy.yml`: job de teste (`npm test`, com
+  `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` pra não baixar browser à toa — os testes deste repo não
+  abrem browser) + job de deploy via SSH (`appleboy/ssh-action`) que só roda em push direto pra
+  `main` (não em PR) e só depois do job de teste passar. Precisa de 3 secrets no GitHub
+  (`DEPLOY_HOST`/`DEPLOY_USER`/`DEPLOY_SSH_KEY`, com uma chave SSH dedicada só pro CI, nunca a
+  pessoal) — documentado no guia. **Nunca rodou de verdade** — só validação de sintaxe local.
+- **7.5** — `deploy/limpeza-diaria.sh` (cron): apaga `leads/*.xlsx` com mais de 30 dias e
+  `logs/pm2-*.log` com mais de 14 dias (os logs da própria app já são rotacionados sozinhos pelo
+  `pino-roll`, história 5.2 — isso aqui só cobre o que o pm2 escreve por fora disso). Documentado
+  que `data/receita.db` **não precisa** de backup (regenerável a partir dos ZIPs da RFB) e que o
+  banco Postgres **precisa mas não tem automático** — confirmado na doc oficial do Supabase que
+  o plano Free não inclui backup diário nem PITR (só Pro+); recomendação é `supabase db dump`
+  manual e periódico até decidirem fazer upgrade.
+- **7.6** — `deploy/atualizar-receita-mensal.sh`: baixa os 22 ZIPs do mês da RFB, reimporta num
+  banco **separado** (nunca toca no `receita.db` que a aplicação está lendo ao vivo), consolida o
+  WAL (`PRAGMA wal_checkpoint(TRUNCATE)` — sem isso um `mv` só do `.db` perderia o que ainda não
+  tinha sido escrito no arquivo principal) e só then troca atomicamente, mantendo 1 geração
+  anterior (`receita.db.anterior`) como válvula de escape pra reverter. Depois da troca, dá
+  `pm2 restart` — necessário porque o processo em memória mantém o handle do arquivo antigo
+  aberto por inode até reiniciar, mesmo depois do nome "receita.db" apontar pro arquivo novo.
+  **Ressalva importante:** não consegui confirmar ao vivo a URL/estrutura de pastas da RFB
+  (`arquivos.receitafederal.gov.br` bloqueia fetch automatizado — bati 404 tanto pela raiz quanto
+  numa pasta de mês específico, mesmo a URL aparecendo indexada numa busca). O padrão usado no
+  script é o documentado/usado por outros projetos que consomem essa base e bate com os mesmos 22
+  nomes de arquivo que `importar-receita.js` já espera, mas o guia deixa explícito: **rodar um
+  dry-run manual antes de confiar nisso sozinho no cron**.
+
+**Recomendação de disco revisada:** o guia (`deploy/README.md`) agora pede 60GB de disco no VPS,
+não 40GB — a atualização mensal precisa de ~35GB livres durante a troca (banco atual + anterior
+mantido + banco novo sendo construído + ZIPs baixados).
+
+**Próximo passo real:** contratar VPS + domínio e seguir `deploy/README.md` na ordem. Cada seção
+termina com o que confirmar antes de considerar aquela história ✅ de verdade (não só 🟡).
+
+---
+
+*Última atualização: 2026-07-25 — Épico 7 (Infraestrutura & Deploy) com as 6 histórias
+implementadas em `deploy/` + CI/CD, mas 🟡 até validar contra VPS real (seção 24); MCP do Supabase
+conectado e documentado; bug crítico de `confirmar_compra` exposto ao role `anon` achado e
+corrigido em produção (seção 23); leaked password protection bloqueada pelo plano Free (pendência
+de negócio, não técnica); ver seções 13-24 pro histórico recente.*

@@ -80,12 +80,13 @@ conveniente).
 ## Fase 4 — Produção
 
 ### Épico 7 — Infraestrutura & Deploy
-- [ ] ⬜ 7.1 — Provisionar VPS com hardening
-- [ ] ⬜ 7.2 — Deploy da aplicação + upload do receita.db — *depende de: 7.1 ⬜*
-- [ ] ⬜ 7.3 — Domínio + Caddy + HTTPS — *depende de: 7.2 ⬜*
-- [ ] ⬜ 7.4 — CI/CD — deploy automático — *depende de: 7.2 ⬜*
-- [ ] ⬜ 7.5 — Backups e limpeza de arquivos
-- [ ] ⬜ 7.6 — Atualização mensal da base da Receita — *depende de: 7.2 ⬜*
+**Nenhuma história aqui foi validada contra infra real** — não havia VPS/domínio contratado quando foram implementadas (2026-07-25). Scripts/configs prontos em `deploy/` + guia em `deploy/README.md`; falta o "golden path" de verdade assim que houver servidor. Ver `CONTEXTO.md` seção 24 para o relato completo.
+- [x] 🟡 7.1 — Provisionar VPS com hardening — `deploy/setup-vps.sh` (usuário sudo, SSH só-chave, UFW, fail2ban, unattended-upgrades, swap, Node+pm2). Sintaxe validada (`bash -n`), não rodado contra VPS real
+- [x] 🟡 7.2 — Deploy da aplicação + upload do receita.db — *depende de: 7.1 🟡* — `deploy/deploy.sh` + `deploy/ecosystem.config.js` (pm2) + guia de transferência do banco via `rsync`
+- [x] 🟡 7.3 — Domínio + Caddy + HTTPS — *depende de: 7.2 🟡* — `deploy/Caddyfile` + guia; corrigido `app.set('trust proxy', 1)` em `src/server.js` (sem isso o rate limit por IP quebraria atrás do reverse proxy)
+- [x] 🟡 7.4 — CI/CD — deploy automático — *depende de: 7.2 🟡* — `.github/workflows/deploy.yml` (testa + faz deploy via SSH em push pra `main`); nunca rodou de verdade, falta cadastrar os secrets no GitHub
+- [x] 🟡 7.5 — Backups e limpeza de arquivos — `deploy/limpeza-diaria.sh` (leads/logs antigos) + guia de `supabase db dump` manual (plano Free não tem backup automático do Postgres)
+- [x] 🟡 7.6 — Atualização mensal da base da Receita — *depende de: 7.2 🟡* — `deploy/atualizar-receita-mensal.sh`, importa em banco separado e só troca atomicamente no final, mantém 1 geração anterior. **URL da RFB não confirmada ao vivo** (site bloqueia fetch automatizado) — exige dry-run manual antes de confiar no cron
 
 ### Épico 8 — Frontend do Produto
 - [x] ✅ 8.1 — Fluxo autenticado na interface — *depende de: 0.1 ✅, 1.1 ✅, 1.2 ✅*
@@ -106,4 +107,4 @@ conveniente).
 1. Resolver a pendência do Resend (bloqueia testar cadastro de usuários reais)
 2. Configurar `PIX_CHAVE` real (fecha o Épico 2 de vez)
 3. Ver uma compra Pix de verdade passar pela fila (fecha a 6.3 — Épico 6 inteiro ✅ depois disso)
-4. Épico 7 (deploy) — Épico 6 já está fechado em código e validado; falta só a validação acima antes de ir pra produção
+4. Contratar VPS + domínio e seguir `deploy/README.md` na ordem (7.1 → 7.2 → 7.3 → 7.4 → 7.5/7.6) — é o que falta pra virar as 6 histórias do Épico 7 de 🟡 pra ✅ de verdade
