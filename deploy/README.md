@@ -88,4 +88,46 @@ Esse é o mesmo script que a história 7.4 (CI/CD) chama automaticamente depois 
 
 ---
 
-<!-- 7.3, 7.4, 7.5, 7.6 são adicionados abaixo conforme cada história é implementada -->
+## 7.3 — Domínio + Caddy + HTTPS
+
+**Antes de tudo:** aponte o domínio pro IP do VPS — registro DNS tipo `A`,
+`seu-dominio.com.br` → `SEU_IP` (no painel do seu provedor de domínio, ex.
+registro.br). Espera propagar (pode levar de minutos a algumas horas) antes
+de seguir, senão o Caddy não consegue emitir o certificado.
+
+Instalar o Caddy (repositório oficial):
+
+```bash
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update
+sudo apt install -y caddy
+```
+
+Editar `/etc/caddy/Caddyfile` com o conteúdo de [`Caddyfile`](Caddyfile) (troque
+`seu-dominio.com.br` pelo domínio real primeiro), depois:
+
+```bash
+sudo systemctl reload caddy
+```
+
+O Caddy emite e renova o certificado Let's Encrypt sozinho — não precisa `certbot`/cron.
+
+**Não esqueça de atualizar o `.env`** no servidor com o domínio real, senão o CORS (história 4.1) bloqueia o próprio frontend:
+
+```env
+APP_ORIGIN=https://seu-dominio.com.br
+```
+
+e reiniciar (`pm2 reload deploy/ecosystem.config.js --update-env`).
+
+> A aplicação já foi ajustada (`app.set('trust proxy', 1)` em `src/server.js`) pra reconhecer o
+> Caddy como reverse proxy de confiança — sem isso, o rate limit por IP (história 4.1/4.3) veria
+> todo mundo vindo do mesmo IP (o do próprio Caddy) e quebraria silenciosamente em produção.
+
+Confirme com `curl -I https://seu-dominio.com.br/health` — deve responder `200` com certificado válido.
+
+---
+
+<!-- 7.4, 7.5, 7.6 são adicionados abaixo conforme cada história é implementada -->

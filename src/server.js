@@ -47,6 +47,12 @@ async function expirarComprasPendentes() {
 }
 
 const app = express();
+// Em produção (história 7.3) a app roda atrás do Caddy no mesmo VPS — sem
+// isso, express-rate-limit e req.ip enxergam só o IP do Caddy (localhost)
+// pra todo mundo, quebrando o rate limit por IP/usuário. "1" confia só no
+// primeiro hop (o próprio Caddy), nunca em X-Forwarded-For encadeado vindo
+// do cliente — evita que o cliente falsifique o próprio IP.
+app.set('trust proxy', 1);
 app.use(logRequisicao); // primeiro middleware (história 5.1): registra até requisição barrada por rate limit/auth
 app.use(helmetMiddleware);
 app.use(corsMiddleware);
