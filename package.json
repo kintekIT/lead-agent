@@ -1,6 +1,6 @@
 {
   "name": "lead-agent",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Agente de geração de leads com IA",
   "type": "commonjs",
   "main": "src/index.js",
