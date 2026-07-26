@@ -7,9 +7,11 @@ neste momento. Siga este guia na ordem quando for provisionar de verdade, e
 ajuste o que for necessário para a sua distro/provedor específico.
 
 Pré-requisitos antes de começar: um VPS Ubuntu 22.04/24.04 LTS (mínimo
-recomendado: 2 vCPU / 4GB RAM / 40GB disco — o `data/receita.db` sozinho
-ocupa ~10,7GB) e, quando chegar na história 7.3, um domínio próprio com
-acesso ao painel de DNS.
+recomendado: 2 vCPU / 4GB RAM / **60GB disco** — o `data/receita.db` sozinho
+ocupa ~10,7GB, e a atualização mensal da história 7.6 precisa de ~35GB
+livres durante a troca, contando a geração anterior mantida como
+segurança) e, quando chegar na história 7.3, um domínio próprio com acesso
+ao painel de DNS.
 
 ---
 
@@ -198,4 +200,47 @@ o volume de usuários reais justificar.
 
 ---
 
-<!-- 7.6 é adicionado abaixo quando implementado -->
+## 7.6 — Atualização mensal da base da Receita
+
+[`atualizar-receita-mensal.sh`](atualizar-receita-mensal.sh) baixa o dump do mês corrente da RFB,
+reimporta num banco **separado** (nunca mexe no `receita.db` que a aplicação está lendo ao vivo) e
+só troca o arquivo depois que a importação inteira terminar sem erro — se algo falhar no meio
+(internet caiu, disco cheio, ZIP corrompido), a produção nem percebe. Mantém 1 geração anterior
+(`receita.db.anterior`) como válvula de escape.
+
+```bash
+crontab -e
+# dia 5 do mês, 4h da manhã — dá folga pra RFB publicar o dump do mês corrente
+0 4 5 * * /home/deploy/lead-agent/deploy/atualizar-receita-mensal.sh >> /home/deploy/lead-agent/logs/atualizacao-receita.log 2>&1
+```
+
+Reverter se a base nova vier ruim:
+```bash
+cd ~/lead-agent
+mv data/receita.db.anterior data/receita.db
+pm2 restart lead-agent
+```
+
+> ⚠️ **Não consegui confirmar ao vivo a URL/estrutura de pastas da RFB** —
+> `arquivos.receitafederal.gov.br` bloqueia requisições automatizadas
+> (WebFetch bateu 404 tanto na raiz quanto numa pasta de mês específico,
+> mesmo com a URL aparecendo indexada numa busca). O padrão usado no script
+> (`.../dados_abertos_cnpj/AAAA-MM/Cnaes.zip` etc., mesmos 22 nomes de
+> arquivo que `importar-receita.js` já espera) é o documentado/usado por
+> outros projetos que consomem essa base, mas **faça um dry-run manual
+> (`bash deploy/atualizar-receita-mensal.sh`, acompanhando o output) antes
+> de confiar nisso rodando sozinho via cron** — se a RFB tiver mudado algo
+> na estrutura de pastas, é aqui que vai quebrar.
+
+---
+
+## Resumo do que falta pra cada história virar ✅ de verdade
+
+Todo o Épico 7 está com código/scripts prontos, mas **nada foi validado contra infraestrutura
+real** — não existia VPS/domínio contratado no momento em que isso foi escrito. Quando contratar:
+
+1. Rodar 7.1 num servidor de verdade e confirmar que o SSH com o usuário `deploy` funciona.
+2. Fazer o primeiro deploy manual (7.2) — é o teste que valida se `deploy.sh`/`ecosystem.config.js` estão certos.
+3. Apontar o domínio e confirmar HTTPS de verdade (7.3) — inclusive testar que o rate limit por IP não quebrou (o `trust proxy` é a parte mais fácil de errar aqui).
+4. Cadastrar os secrets do GitHub e ver o primeiro deploy automático rodar do zero (7.4).
+5. Rodar a limpeza e a atualização mensal manualmente uma vez cada (7.5/7.6) antes de confiar no cron — principalmente o 7.6, pela ressalva acima sobre a URL da RFB não verificada ao vivo.
