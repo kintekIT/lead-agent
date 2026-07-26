@@ -131,6 +131,31 @@ Abra o Pull Request no GitHub, o outro sócio revisa e faz o merge. Evite commit
 
 ---
 
+## 🤖 Usando Claude Code neste repo (agente + MCP do Supabase)
+
+Se você desenvolve com o [Claude Code](https://claude.com/claude-code), o repo já vem com dois recursos configurados pra acelerar o trabalho. Não é obrigatório pra rodar o projeto (Passos 1-7 acima funcionam sem isso) — é só ferramenta de apoio pra quem usa IA no dia a dia de desenvolvimento.
+
+### Agente especializado (`lead-agent-dev`)
+
+Um subagente em [`.claude/agents/lead-agent-dev.md`](.claude/agents/lead-agent-dev.md) já vem carregado com o contexto deste projeto: arquitetura dos 3 motores, schema do Supabase, regras de negócio (créditos/trial/dedup), convenções de código e o fluxo de branch-por-história — sem precisar reexplicar nada a cada conversa nova.
+
+**Como usar:** peça diretamente, ex. *"usa o agente lead-agent-dev pra continuar a história 5.4"*, ou deixe o Claude Code escolher sozinho quando a tarefa for claramente sobre este projeto (ele aparece na lista de agentes disponíveis).
+
+### MCP do Supabase (`.mcp.json`)
+
+O projeto tem o servidor MCP oficial do Supabase configurado (aponta pra `https://mcp.supabase.com/mcp`) — dá ao Claude Code acesso direto ao projeto **KintekIT** (schema, migrations, logs, advisors de segurança/performance), sem precisar copiar/colar SQL manualmente no SQL Editor toda vez.
+
+**Pra conectar (uma vez por máquina):**
+1. Dentro do Claude Code, rode `/mcp reconnect all` (ou `/mcp enable supabase`).
+2. Faça login com sua conta Supabase no navegador que abrir.
+3. Selecione o projeto **KintekIT**.
+
+Depois de conectado, as ferramentas ficam disponíveis automaticamente — o Claude Code usa quando fizer sentido: aplicar uma migration nova, checar se uma função Postgres ficou exposta ao role `anon` por engano (já pegou um bug real assim, ver `CONTEXTO.md` 2026-07-25), ver logs de erro, conferir o schema de verdade em vez de confiar só nos arquivos locais.
+
+> ⚠️ Ações de escrita (`apply_migration`, `execute_sql`) vão **direto pro banco de produção** — o Claude Code pede sua confirmação antes de rodar qualquer uma delas.
+
+---
+
 ## Modos legados (Agente IA e RPA)
 
 Tudo abaixo desta linha se refere aos motores antigos, que continuam funcionando mas estão **ocultos na interface**. Só siga adiante se for usá-los — eles exigem chaves de API de IA no `.env`:

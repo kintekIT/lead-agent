@@ -610,4 +610,62 @@ bloqueadora, pro sócio decidir se/quando mexer.
 
 ---
 
-*Última atualização: 2026-07-24 — Épico 6 fechado (6.1/6.2/6.4 ✅, 6.3 🟡 aguardando uso real); 3.2, 8.3, 4.4 e 8.4 fechados ✅; 4.3 parcial (rate limit por usuário ✅, antifraude do trial depende de config do dashboard Supabase); duas contas admin reais (`kintekit@gmail.com`, `guh.712@hotmail.com`); ver seções 13-22.*
+## 23. MCP do Supabase conectado + bug crítico corrigido: `anon` confirmava compra Pix sem pagar (2026-07-25)
+
+Complementando a seção 12 (agente e skills): o repo agora também tem `.mcp.json` configurado,
+apontando pro servidor MCP oficial do Supabase (`https://mcp.supabase.com/mcp`). Dá ao Claude
+Code acesso direto ao projeto **KintekIT** (schema real, migrations, logs, advisors de
+segurança/performance) sem precisar colar SQL manualmente no SQL Editor toda vez. Conexão exige
+OAuth (`/mcp reconnect all` dentro do Claude Code, login pela conta Supabase, selecionar o
+projeto). Documentado no `README.md` pro sócio saber que existe e como ligar na própria máquina.
+
+**Primeiro uso já achou um bug real em produção.** Rodando `get_advisors(type=security)` +
+confirmando com `has_function_privilege` direto no Postgres: `confirmar_compra(uuid)` (história
+2.5, `SECURITY DEFINER`) estava executável pelo role `anon` — **qualquer requisição sem login**,
+usando só a anon key pública, conseguia chamar `POST /rest/v1/rpc/confirmar_compra` com um
+`purchase_id` (visível pro próprio comprador ao criar a intenção de compra) e creditar a conta
+**sem pagar nada de verdade via Pix**. Como é `SECURITY DEFINER`, roda com privilégio elevado e
+ignora RLS — RLS não protegia esse caminho.
+
+**Causa raiz, sistêmica:** o Supabase concede `EXECUTE` a `anon`/`authenticated` por padrão em
+toda function nova do schema `public` (via `ALTER DEFAULT PRIVILEGES` do próprio provisionamento
+do projeto). Todas as migrations anteriores só escreviam `revoke execute ... from public,
+authenticated` — nunca revogavam de `anon` explicitamente. Revogar de `PUBLIC` (pseudo-role) não
+remove o grant que o `anon` já tem por conta própria, então o acesso do `anon` nunca saiu.
+**Vale pra qualquer function nova daqui pra frente: sempre revogar de `anon` também, não só
+`public`/`authenticated`** (já ajustado no `lead-agent-dev.md`).
+
+`conceder_trial()`/`handle_new_user()` tinham o mesmo grant indevido mas não eram exploráveis de
+fato (são `returns trigger` — o Postgres recusa chamada direta fora de contexto de trigger).
+`entregar_leads`/`contar_novos`/`metricas_negocio`/`saldo_creditos` também tinham `anon` com
+`EXECUTE`, mas por não serem `SECURITY DEFINER`, o RLS (sem nenhuma policy de INSERT/UPDATE, só
+SELECT da própria linha) já bloqueava dano real — corrigidas mesmo assim, por defesa em
+profundidade e pra bater com o comentário original de cada uma.
+
+**Fix aplicado e validado em produção:** migration
+`supabase/migrations/20260725180000_revoga_execute_anon_rpcs_sensiveis.sql`, revogando `EXECUTE`
+de `anon`/`authenticated`/`public` e deixando só `service_role` nas 7 funções. Confirmado antes
+que nenhuma delas é chamada do frontend (só via `supabaseAdmin`/service_role no backend). A
+chamada via `mcp__supabase__apply_migration` foi bloqueada pelo classificador de auto-mode do
+Claude Code (DDL direto em produção via MCP não passa sem aprovação explícita) — aplicada pelo
+usuário colando a migration no SQL Editor. Validado depois com `has_function_privilege` e
+`get_advisors`: `anon`/`authenticated` sem acesso a nenhuma das 7, advisor de segurança limpo.
+
+**Pendência que sobrou, sem solução por ora:** `auth_leaked_password_protection` (checagem de
+senha vazada contra o HaveIBeenPwned.org) segue desativada — **não dá pra ligar no plano Free**
+do projeto. Confirmado tentando de verdade pelo dashboard (Authentication → Sign In/Providers →
+Email → "Prevent use of leaked passwords"): o toggle deixa marcar, mas o Supabase recusa ao
+salvar com `"Configuring leaked password protection via HaveIBeenPwned.org is available on Pro
+Plans and up."`. Fica bloqueado até decidirem fazer upgrade de plano.
+
+**Achados de performance, não corrigidos (baixa urgência):** 6 policies RLS reavaliam
+`auth.uid()` por linha em vez de `(select auth.uid())` (gargalo conhecido do Supabase, só dói em
+escala); FK sem índice em `delivered_leads.search_id`; 3 índices nunca usados (esperado, tabelas
+ainda novas).
+
+---
+
+*Última atualização: 2026-07-25 — MCP do Supabase conectado e documentado; bug crítico de
+`confirmar_compra` exposto ao role `anon` achado e corrigido em produção (seção 23); leaked
+password protection bloqueada pelo plano Free (pendência de negócio, não técnica); ver seções
+13-23 pro histórico recente.*
