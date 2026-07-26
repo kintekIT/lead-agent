@@ -726,8 +726,33 @@ termina com o que confirmar antes de considerar aquela história ✅ de verdade 
 
 ---
 
-*Última atualização: 2026-07-25 — Épico 7 (Infraestrutura & Deploy) com as 6 histórias
+## 25. Custos operacionais e checklist de go-live (2026-07-26)
+
+Levantamento feito pra alinhar orçamento com o pessoal de marketing/comercial. **A tabela de
+custos e o checklist de go-live passo a passo moram no `BACKLOG.md`** (seções "Custos
+operacionais" e "Go-live — ordem sugerida") — é lá que devem ser mantidos, pra não duplicar.
+
+Resumo do que ficou claro no levantamento:
+
+- **Pra lançar, o custo é baixo: ~R$50/mês** (VPS ~R$45 + domínio R$40/ano; HTTPS é grátis via
+  Let's Encrypt/Caddy). Supabase e Resend atendem no plano free hoje.
+- **Escalado fica ~R$280/mês**, e os dois upgrades pagos existem por motivos concretos, não por
+  vaidade: o **Supabase Pro (US$25/mês)** é o que libera backup automático do Postgres — hoje
+  não existe nenhum, só `supabase db dump` manual (ver 7.5) — e a leaked password protection
+  (seção 23). O **Resend pago (US$20-35/mês)** só entra se passarmos de 3.000 e-mails/mês.
+- **O domínio é o gargalo mais barato e mais bloqueante do projeto**: R$40/ano destravam de uma
+  vez o Resend (SPF/DKIM, sem o qual só o dono da conta recebe e-mail), o `APP_ORIGIN` de
+  produção (CORS da 4.1) e o HTTPS do Caddy (7.3). Comprar isso antes de qualquer outra coisa é
+  o passo de maior alavancagem no backlog inteiro.
+
+Nenhum item novo de código saiu daqui — foi consolidação de pendências que já estavam espalhadas
+entre as seções 13-24, as anotações de desenvolvimento dos sócios e o `deploy/README.md`.
+
+---
+
+*Última atualização: 2026-07-26 — custos operacionais levantados e checklist de go-live
+consolidado no `BACKLOG.md` (seção 25); Épico 7 (Infraestrutura & Deploy) com as 6 histórias
 implementadas em `deploy/` + CI/CD, mas 🟡 até validar contra VPS real (seção 24); MCP do Supabase
 conectado e documentado; bug crítico de `confirmar_compra` exposto ao role `anon` achado e
 corrigido em produção (seção 23); leaked password protection bloqueada pelo plano Free (pendência
-de negócio, não técnica); ver seções 13-24 pro histórico recente.*
+de negócio, não técnica); ver seções 13-25 pro histórico recente.*

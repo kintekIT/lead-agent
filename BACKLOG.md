@@ -98,13 +98,54 @@ conveniente).
 
 ## Pendências transversais (não são história, mas bloqueiam produção)
 
+- **Domínio próprio ainda não comprado** — é o gargalo que trava três coisas de uma vez: (1) verificar o domínio no Resend com SPF/DKIM no DNS, que é o que destrava e-mail pra qualquer usuário que não seja o dono da conta; (2) `APP_ORIGIN` de produção (CORS, história 4.1); (3) HTTPS automático do Caddy (7.3). Registro oficial: [registro.br](https://registro.br).
 - **Resend sem domínio verificado**: só entrega e-mail pro dono da própria conta (`kintekit@gmail.com`). Cadastro de qualquer outro usuário falha com 500 até resolver (verificar domínio, ou desativar SMTP customizado temporariamente, ou desligar "Confirm email" em dev). Achado em 2026-07-23.
-- **Preços dos pacotes de crédito são placeholder** (`src/config/pacotes-creditos.js`) — decisão de negócio dos sócios, não validar como definitivo.
+- **Preços dos pacotes de crédito são placeholder** (`src/config/pacotes-creditos.js`, R$99/199/349) — decisão de negócio dos sócios, não validar como definitivo.
+- **Texto dos Termos de Uso / Política de Privacidade é placeholder** (`public/termos.html`, história 4.5) — o aceite já é registrado no cadastro, mas o conteúdo precisa ser escrito/revisado antes de vender pra cliente real.
+- **Leaked password protection desativada** — toggle do dashboard Supabase (Authentication → Providers → Email) que **exige plano Pro**. Confirmado tentando de verdade no plano Free: o toggle marca, mas o save é recusado. Fica bloqueado até decidirem o upgrade — não adianta tentar de novo sem mudar de plano.
 - **Migrations — MCP do Supabase conectado (2026-07-25), mas ainda exige aprovação humana por chamada**: `apply_migration` via MCP funciona (usado pra corrigir o bug do `anon`/`confirmar_compra`, ver `CONTEXTO.md` seção 23), mas o classificador de auto-mode do Claude Code bloqueia DDL direto em produção sem confirmação explícita a cada vez — na prática, colar no SQL Editor do dashboard continua sendo o caminho mais direto. Ver `supabase/README.md` para a lista em ordem.
 
-## Próximos passos sugeridos (na ordem que fazem mais sentido)
+## Custos operacionais (levantamento de 2026-07-26)
 
-1. Resolver a pendência do Resend (bloqueia testar cadastro de usuários reais)
-2. Configurar `PIX_CHAVE` real (fecha o Épico 2 de vez)
-3. Ver uma compra Pix de verdade passar pela fila (fecha a 6.3 — Épico 6 inteiro ✅ depois disso)
-4. Contratar VPS + domínio e seguir `deploy/README.md` na ordem (7.1 → 7.2 → 7.3 → 7.4 → 7.5/7.6) — é o que falta pra virar as 6 histórias do Épico 7 de 🟡 pra ✅ de verdade
+| Item | Pra que serve | Custo |
+|---|---|---|
+| VPS (2 vCPU / 4GB RAM / 60GB disco) | roda a aplicação e hospeda o `receita.db` | ~R$45/mês |
+| Domínio `.com.br` (registro.br) | endereço público + DNS pro SPF/DKIM do Resend | R$40/ano |
+| HTTPS (Let's Encrypt via Caddy) | certificado TLS | grátis |
+| Supabase | Auth + Postgres | Free hoje. Pro = US$25/mês (~R$127) e é o que libera backup diário do Postgres e a leaked password protection |
+| Resend | e-mail transacional (confirmação, recuperação de senha) | Free até 3.000/mês. Pago = US$20-35/mês (~R$100-180) |
+| Sentry + UptimeRobot (5.3) | stacktrace de erro + monitor de uptime | plano free atende |
+
+**Mínimo pra lançar: ~R$50/mês.** Com Supabase Pro + Resend pago: ~R$280/mês. Câmbio de
+referência R$5,08/US$ (26/07/2026) — os itens em dólar variam com a cotação.
+
+## Go-live — ordem sugerida
+
+Cada item diz **o que confirmar** antes de considerar fechado.
+
+1. **Comprar o domínio** (registro.br) — destrava Resend, `APP_ORIGIN` e HTTPS de uma vez só.
+2. **Verificar o domínio no Resend** (registros SPF/DKIM no DNS) → confirmar: cadastro de um
+   e-mail que **não** seja o `kintekit@gmail.com` recebe a confirmação, e não cai em spam.
+3. **`PIX_CHAVE` / `PIX_NOME_RECEBEDOR` / `PIX_CIDADE` reais no `.env`** → fecha a 2.5.
+4. **Ver uma compra Pix de verdade passar pela fila do admin** → fecha a 6.3, e com ela o Épico 6
+   inteiro.
+5. **Escrever o texto real dos Termos de Uso / Política de Privacidade** → fecha a 4.5.
+6. **Contratar a VPS e seguir `deploy/README.md` na ordem** — é o que vira as 6 histórias do
+   Épico 7 de 🟡 pra ✅:
+   - **7.1** — rodar `setup-vps.sh` no servidor de verdade. **Antes de fechar a sessão root**,
+     abrir outro terminal e confirmar que `ssh deploy@IP` funciona — se a chave não foi copiada
+     certo, você fica trancado pra fora.
+   - **7.2** — primeiro deploy manual seguindo o guia (clone → `.env` → `rsync` do `receita.db` →
+     `pm2 start`). É o teste real de que `deploy.sh` e `ecosystem.config.js` estão certos.
+   - **7.3** — apontar o domínio, confirmar HTTPS de verdade e **testar que o rate limit por IP
+     não quebrou**: o `app.set('trust proxy', 1)` é a parte mais fácil de sair errado atrás do
+     Caddy (sem ele, todo mundo aparece com o IP do proxy e o limite vira global).
+   - **7.4** — cadastrar os 3 secrets no GitHub (`DEPLOY_HOST` / `DEPLOY_USER` /
+     `DEPLOY_SSH_KEY`) e ver o primeiro deploy automático rodar sozinho depois de um push na
+     `main`.
+   - **7.5 / 7.6** — rodar a limpeza e a atualização mensal **manualmente uma vez cada** antes de
+     confiar no cron. O 7.6 principalmente: a URL da RFB não deu pra confirmar ao vivo (o site
+     bloqueia fetch automatizado), então o dry-run manual é obrigatório.
+7. **Sentry + UptimeRobot** (5.3) — só faz sentido depois que existir URL pública: criar conta
+   free no Sentry e colar o `SENTRY_DSN` no `.env`; cadastrar `https://<dominio>/health` no
+   UptimeRobot com alerta por e-mail/Telegram.
