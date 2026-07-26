@@ -100,7 +100,7 @@ conveniente).
 
 - **Resend sem domínio verificado**: só entrega e-mail pro dono da própria conta (`kintekit@gmail.com`). Cadastro de qualquer outro usuário falha com 500 até resolver (verificar domínio, ou desativar SMTP customizado temporariamente, ou desligar "Confirm email" em dev). Achado em 2026-07-23.
 - **Preços dos pacotes de crédito são placeholder** (`src/config/pacotes-creditos.js`) — decisão de negócio dos sócios, não validar como definitivo.
-- **Migrations aplicadas manualmente**: não há credencial de banco direta neste ambiente de dev, só chaves de API — toda migration nova precisa ser colada no SQL Editor do dashboard Supabase por um humano. Ver `supabase/README.md` para a lista em ordem.
+- **Migrations — MCP do Supabase conectado (2026-07-25), mas ainda exige aprovação humana por chamada**: `apply_migration` via MCP funciona (usado pra corrigir o bug do `anon`/`confirmar_compra`, ver `CONTEXTO.md` seção 23), mas o classificador de auto-mode do Claude Code bloqueia DDL direto em produção sem confirmação explícita a cada vez — na prática, colar no SQL Editor do dashboard continua sendo o caminho mais direto. Ver `supabase/README.md` para a lista em ordem.
 
 ## Próximos passos sugeridos (na ordem que fazem mais sentido)
 
