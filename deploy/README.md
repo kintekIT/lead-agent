@@ -164,4 +164,38 @@ Depois disso, apague `deploy_key`/`deploy_key.pub` do seu computador (só o GitH
 
 ---
 
-<!-- 7.5, 7.6 são adicionados abaixo conforme cada história é implementada -->
+## 7.5 — Backups e limpeza de arquivos
+
+**Limpeza de disco** (arquivos gerados que crescem sem parar): [`limpeza-diaria.sh`](limpeza-diaria.sh)
+apaga planilhas de `leads/` com mais de 30 dias e sobras de log do pm2 (`logs/pm2-*.log`) com mais
+de 14 dias — os logs da própria aplicação já são rotacionados sozinhos pelo `pino-roll` (história
+5.2, respeita `LOG_RETENCAO_DIAS`), isso aqui só cobre o que o pm2 escreve por fora disso. Agende via cron, como o usuário `deploy`:
+
+```bash
+crontab -e
+# adicione a linha:
+0 3 * * * /home/deploy/lead-agent/deploy/limpeza-diaria.sh >> /home/deploy/lead-agent/logs/limpeza.log 2>&1
+```
+
+**O que *não* precisa de backup:**
+- `data/receita.db` — é regenerável a partir dos ZIPs públicos da RFB ([`atualizar-receita-mensal.sh`](atualizar-receita-mensal.sh), história 7.6). Fazer backup de ~11GB de dado público reimportável é desperdício de espaço/custo.
+
+**O que *precisa* de backup e não tem automático hoje — banco Postgres/Supabase:** o projeto
+KintekIT está no **plano Free**, que **não inclui backup automático diário nem Point-in-Time
+Recovery** (isso só existe a partir do plano Pro). Enquanto for Free, a recomendação oficial do
+próprio Supabase é exportar manualmente e guardar a cópia fora da plataforma:
+
+```bash
+# roda do seu computador (precisa do Supabase CLI: npm i -g supabase)
+supabase db dump --db-url "postgresql://postgres:[SENHA]@db.bafsvszjpztbmbhmcwqk.supabase.co:5432/postgres" -f backup-$(date +%F).sql
+```
+
+Isso guarda `profiles`, `credit_ledger`, `purchases`, `searches`, `delivered_leads`, `events` —
+ou seja, todo o histórico de créditos e compras dos usuários reais. **Não existe automação pra
+isso ainda** (não dá pra colocar a senha do banco num cron sem pensar em onde guardá-la com
+segurança) — por ora é um passo manual periódico, ou decidir fazer upgrade pro plano Pro quando
+o volume de usuários reais justificar.
+
+---
+
+<!-- 7.6 é adicionado abaixo quando implementado -->
