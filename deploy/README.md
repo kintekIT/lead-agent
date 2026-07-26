@@ -46,4 +46,46 @@ root.
 
 ---
 
-<!-- 7.2, 7.3, 7.4, 7.5, 7.6 são adicionados abaixo conforme cada história é implementada -->
+## 7.2 — Deploy da aplicação + upload do `receita.db`
+
+Primeiro deploy (feito uma vez, como o usuário `deploy`, não root):
+
+```bash
+ssh deploy@SEU_IP
+
+git clone https://github.com/kintekIT/lead-agent.git
+cd lead-agent
+npm ci --omit=dev
+```
+
+**`.env`**: nunca vai pelo git. Copie o conteúdo manualmente (SSH/SCP, nunca por canal público) —
+mesmas variáveis do `.env.example` na raiz, valores de produção (chaves reais do Supabase, `PIX_CHAVE`, `APP_ORIGIN=https://seu-dominio.com.br`, etc.).
+
+**`data/receita.db`** (~10,7GB — não vai pelo git, está no `.gitignore`): transfira do seu
+computador pro servidor com `rsync` (retomável, não recomeça do zero se cair a conexão):
+
+```bash
+# do seu computador (Windows: rode isso no Git Bash/WSL, rsync não existe no cmd/PowerShell)
+rsync -avz --progress --partial data/receita.db deploy@SEU_IP:~/lead-agent/data/
+```
+
+Depois disso, suba o processo com `pm2` usando [`ecosystem.config.js`](ecosystem.config.js):
+
+```bash
+pm2 start deploy/ecosystem.config.js
+pm2 save
+pm2 startup   # siga a instrução impressa — registra o pm2 pra sobreviver a um reboot do VPS
+```
+
+**Atualizações seguintes** (depois que já está no ar): [`deploy.sh`](deploy.sh) faz `git pull` +
+`npm ci` + `pm2 reload` (reload é zero-downtime — não derruba requisições em andamento):
+
+```bash
+cd ~/lead-agent && ./deploy/deploy.sh
+```
+
+Esse é o mesmo script que a história 7.4 (CI/CD) chama automaticamente depois de um push pra `main`.
+
+---
+
+<!-- 7.3, 7.4, 7.5, 7.6 são adicionados abaixo conforme cada história é implementada -->
