@@ -1,0 +1,22 @@
+# História 7.3 — Caddy como reverse proxy: HTTPS automático (Let's Encrypt)
+# na frente da aplicação Node, que roda em localhost:3000 via pm2.
+#
+# Troque "seu-dominio.com.br" pelo domínio de verdade antes de copiar isso
+# pro servidor. Caddy renova o certificado sozinho — não precisa cron nem
+# certbot.
+
+seu-dominio.com.br {
+	reverse_proxy localhost:3000
+
+	encode gzip
+
+	# Remove headers que vazam detalhe de implementação
+	header -Server
+
+	log {
+		output file /var/log/caddy/lead-agent-access.log {
+			roll_size 50mb
+			roll_keep 10
+		}
+	}
+}
