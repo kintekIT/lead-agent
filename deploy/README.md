@@ -130,4 +130,38 @@ Confirme com `curl -I https://seu-dominio.com.br/health` — deve responder `200
 
 ---
 
-<!-- 7.4, 7.5, 7.6 são adicionados abaixo conforme cada história é implementada -->
+## 7.4 — CI/CD (deploy automático)
+
+Workflow: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml). A cada push (ou PR)
+pra `main`, roda `npm test`; se for push direto (não PR) e os testes passarem, conecta no VPS por
+SSH e roda o mesmo [`deploy.sh`](deploy.sh) do deploy manual — só automatiza o que você já faria à mão.
+
+**Gere uma chave SSH dedicada só pro CI** (nunca reaproveite sua chave pessoal):
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ./deploy_key -N ""
+```
+
+No VPS, adicione a **chave pública** (`deploy_key.pub`) no `authorized_keys` do usuário `deploy`:
+
+```bash
+cat deploy_key.pub | ssh deploy@SEU_IP 'cat >> ~/.ssh/authorized_keys'
+```
+
+No GitHub, em **Settings → Secrets and variables → Actions**, cadastre 3 secrets:
+
+| Secret | Valor |
+|---|---|
+| `DEPLOY_HOST` | IP ou domínio do VPS |
+| `DEPLOY_USER` | `deploy` |
+| `DEPLOY_SSH_KEY` | conteúdo do arquivo `deploy_key` (a chave **privada**) |
+
+Depois disso, apague `deploy_key`/`deploy_key.pub` do seu computador (só o GitHub precisa guardar a privada).
+
+> ⚠️ Este workflow ainda **não rodou de verdade** — só existe validação de sintaxe local. A
+> primeira execução real acontece no primeiro push pra `main` depois que os secrets forem
+> cadastrados; acompanhe na aba **Actions** do GitHub.
+
+---
+
+<!-- 7.5, 7.6 são adicionados abaixo conforme cada história é implementada -->
