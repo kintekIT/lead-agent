@@ -750,9 +750,140 @@ entre as seções 13-24, as anotações de desenvolvimento dos sócios e o `depl
 
 ---
 
-*Última atualização: 2026-07-26 — custos operacionais levantados e checklist de go-live
-consolidado no `BACKLOG.md` (seção 25); Épico 7 (Infraestrutura & Deploy) com as 6 histórias
-implementadas em `deploy/` + CI/CD, mas 🟡 até validar contra VPS real (seção 24); MCP do Supabase
-conectado e documentado; bug crítico de `confirmar_compra` exposto ao role `anon` achado e
-corrigido em produção (seção 23); leaked password protection bloqueada pelo plano Free (pendência
-de negócio, não técnica); ver seções 13-25 pro histórico recente.*
+## 26. Homologação com gestores: CNAE errado no nicho "consultório ambiental" — causa raiz e fix (2026-08-17)
+
+Feedback de homologação (planilhas de `consultorio_ambiental` e `contabilidade` em `leads/`,
+geradas pra validação com os gestores): a taxa de retorno dos contatos foi baixa (8 em 80) e,
+mais grave, o gestor apontou que a planilha de "consultório ambiental" trazia CNAEs sem relação
+nenhuma com o nicho — escritório de advocacia, consultoria de TI, auditoria atuarial etc.
+
+**Causa raiz, sistêmica (não era só um sinônimo faltando):** `expandirTermos`
+(`src/tools/receita.js`) expande cada *palavra* do nicho digitado em termos e casa qualquer CNAE
+cuja descrição contenha **qualquer um** deles — é um OR entre todas as palavras, não um AND. Pra
+nicho de uma palavra só isso é inofensivo. Pra nicho composto, a palavra "consultório" virava o
+stem `CONSULTOR` (corte automático de sufixo pra casar variações), que bate em **qualquer**
+"Consultoria..." do CNAE — TI, atuarial, contábil, publicidade, agronegócio — sem relação com meio
+ambiente. O mesmo vale pra "clínica" (bate em laboratório clínico, clínica geriátrica, clínica de
+estética) e "escritório" (bate em papelaria, móveis de escritório, escritores/artistas).
+Confirmado comparando a descrição da atividade com o nome real das empresas retornadas na
+planilha entregue.
+
+Complicando mais: a Receita Federal **não tem uma categoria de CNAE pra "consultoria ambiental"**
+— o mais próximo é uma mistura de gestão de resíduos, estudos geológicos e atividades técnicas
+genéricas, que não compartilham nenhuma palavra-raiz comum com "ambiental". Corrigir só a lógica
+de matching não bastava pra esse nicho específico.
+
+**Fix aplicado** (`src/config/sinonimos-cnae.js` + `src/tools/receita.js`):
+- `PALAVRAS_AMBIGUAS_PREFIXOS` (`CONSULTOR`, `ESCRITOR`, `CLINIC`): palavras de "tipo de
+  estabelecimento" confirmadas contra o banco real como cruzando áreas completamente diferentes.
+  `expandirTermos` agora separa as palavras do nicho em específicas vs. ambíguas e **só usa as
+  ambíguas como fallback quando não sobra nenhuma palavra específica** — nunca soma (OR) as duas.
+  Ex.: "consultório ambiental" busca só por "ambiental"; "consultório" sozinho (nicho de uma
+  palavra) continua caindo no fallback em vez de não achar nada.
+- `CNAES_POR_TERMO`: pra nichos sem palavra-raiz confiável no texto do CNAE (hoje só
+  `AMBIENTAL`/`AMBIENTAIS`), mapeamento direto pra uma lista curada de 7 códigos (gestão de
+  resíduos, coleta/tratamento de resíduos perigosos e não-perigosos, estudos geológicos,
+  atividades técnicas de engenharia/arquitetura não especificadas) em vez de tentar achar palavra
+  em comum. `expandirCodigos` soma esses códigos aos achados por texto.
+- `npm run validar-sinonimos` passou a validar também que os códigos de `CNAES_POR_TERMO` existem
+  de fato na tabela `cnaes` (pega erro de digitação no código).
+- 5 testes novos em `test/receita-matching.test.js` travam a regressão (ambígua descartada quando
+  há palavra específica; ambígua ainda funciona sozinha; código curado presente/ausente conforme
+  o nicho). Suíte inteira: 59/59 passando.
+
+**Validado gerando a planilha de novo** (`leads/leads_consultório_ambiental_são_paulo_sp_
+2026-08-17T23-12-14.xlsx`, 40 leads): as 9 atividades retornadas agora são todas de gestão de
+resíduos/estudos ambientais — nenhuma consultoria de TI, contábil, atuarial ou escritório de
+advocacia. A planilha antiga (`leads_consultorio_ambiental_...T01-35-41.xlsx`) foi mantida na
+pasta pra comparação, não apagada.
+
+**Achado relacionado na hora de escrever esta seção:** o mesmo padrão de bug existia em
+`OFICINA: 'MANUTENC'` (`SINONIMOS_NOVOS_PENDENTE_VALIDACAO`) — corrigido na sequência, ver seção
+27.
+
+**Pendência maior, deixada de fora de propósito (pedido explícito do usuário: só o CNAE por
+agora):** a taxa de retorno de 8/80 aponta pra um problema mais amplo de qualidade de dado —
+telefone/e-mail real vs. desatualizado na base da Receita, não só CNAE certo. Não investigado
+nesta sessão.
+
+---
+
+## 27. Auditoria completa do dicionário de sinônimos CNAE — mais 5 bugs do mesmo padrão (2026-08-17)
+
+Depois da seção 26, o usuário pediu pra corrigir o achado do `OFICINA`/`MANUTENC` e "qualquer
+outro bug que eu venha a identificar". Em vez de corrigir só esse, rodei um script que simula
+`expandirTermos` + o matching real pras 72 chaves do dicionário inteiro contra `data/receita.db`
+e inspecionei manualmente toda entrada com mais de 6 CNAEs batendo. Achou mais 5 bugs reais, todos
+por colisão de substring/raiz genérica demais — o mesmo padrão da seção 26, não casos isolados.
+
+**Bugs achados e causa:**
+- **`PET` (21 CNAEs)** — "pet" é prefixo literal de "petróleo" e aparece no meio de "espetáculo"
+  (es-**pet**áculo). Nicho "petshop"/"pet" trazia extração de petróleo, petroquímica, produção de
+  espetáculos circenses.
+- **`BAR` (13 CNAEs)** — "bar" é prefixo de "barragem"/"barro" e aparece no meio de "embarcações"
+  (em-**bar**cações). Nicho "bar" trazia construção naval, barragens, cerâmica.
+- **`MOVEIS` (27 CNAEs)** — "móveis" aparece no meio de "automóveis" e "imóveis". Nicho "móveis"
+  (loja de móveis) trazia concessionária de carro e imobiliária.
+- **`SEGUROS` (22 CNAEs)** — o corte automático de sufixo (stem) reduzia "SEGUROS" (7 letras) pra
+  "SEGUR" (5 letras), que colide com "segur-ança". Nicho "seguros" (corretora) trazia EPI,
+  vigilância privada e vidro de segurança.
+- **`TRANSPORTADORA` (55 CNAEs) e `AUTOPECAS` (58 CNAEs)** — raiz curada boa demais no sentido
+  errado: "transporte" cobre todo modo de transporte (inclusive transporte espacial, metrô, avião
+  de passageiro) e ", peças e acessórios" é sufixo padrão de dezenas de categorias industriais sem
+  relação (fabricação de instrumento musical, móveis, máquina de escritório). Não eram acidente de
+  substring — a própria raiz escolhida era ampla demais pro que o nicho realmente significa no uso
+  comum (frete/carga; peça de veículo).
+
+**Fix estrutural, resolve a classe toda (não só os 4 casos achados):**
+- `casaTermo()` (`src/tools/receita.js`): termo de uma palavra só agora só casa se aparecer no
+  **início** de uma palavra da descrição, nunca no meio — resolve `MOVEIS` por completo e reduz
+  bastante `PET`/`BAR` (o resíduo de ambos foi zerado pela regra abaixo). Termo de frase (com
+  espaço, ex.: "ANIMAIS DE ESTIMACAO") continua checado como substring simples — já é específico o
+  bastante.
+- `expandirTermos`: palavra de 3-4 letras com sinônimo curado (`PET`, `BAR`) não entra mais no set
+  de matching como palavra crua — só o sinônimo específico é usado. E o stem automático (corte de
+  sufixo) só roda quando **não** existe sinônimo curado pra aquela palavra — confiar no mapeamento
+  manual é mais seguro que cortar 2 letras às cegas (era isso que gerava o `SEGUR` perigoso).
+- Residual conhecido, não fixável por regra geral: `MEDIC` (médico/medicamento) ainda bate em
+  "**medic**ação" — as duas palavras realmente começam iguais em português. Só ocorrência disso na
+  base inteira (`8299701`, medição de consumo de energia); excluído pontualmente via
+  `CNAES_EXCLUIDOS_POR_TERMO` em vez de criar um mecanismo genérico pra 1 caso.
+
+**Fix curado (mesmo mecanismo da seção 26 — `CNAES_POR_TERMO`), pros 3 nichos cuja raiz de texto
+é ampla demais mesmo com o fix estrutural:**
+- `OFICINA`/`MECANICO`/`MECANICA` (+ plurais): removida a raiz `MANUTENC` de `SINONIMOS`
+  (existia tanto em `SINONIMOS_VALIDADOS` quanto em `NOVOS_PENDENTE_VALIDACAO` — o processo de
+  validação de 2026-07-13 só conferia se a raiz existia em algum CNAE, nunca se o resultado era
+  específico). Substituída por 4 códigos de reparo automotivo/moto: `4520001`, `4520003`,
+  `4520007`, `4543900`. "Oficina mecânica" foi de 52 → 4 CNAEs, todos corretos.
+- `TRANSPORTADORA` (+ plural): removida a raiz `TRANSPORTE`. Substituída por 13 códigos de
+  carga/frete (rodoviário, ferroviário, marítimo, fluvial, aéreo, agenciamento/logística de
+  carga), excluindo passageiro, escolar, metrô e transporte espacial. 55 → 15 CNAEs (13 exatos +
+  2 limítrofes defensáveis: revenda de combustível "por transportador retalhista", que ainda casa
+  via stem da palavra crua "transportadora").
+- `AUTOPECAS`: removida a raiz `PECAS E ACESSORIOS`. Substituída por 14 códigos de fabricação e
+  comércio de peça de veículo/moto. 58 → 14 CNAEs, todos corretos.
+
+**Validado**: rodei a mesma auditoria completa de novo pós-fix pras 72 (agora 68, 4 chaves movidas
+pra `CNAES_POR_TERMO`) entradas do dicionário e conferi cada uma com mais de 6 resultados —
+nenhuma colisão sem explicação restante além do `MEDIC`/medição já documentado e excluído. 8
+testes novos em `test/receita-matching.test.js` travam os casos (`casaTermo` não casa no meio de
+palavra; stem perigoso não é mais gerado; nichos curados retornam código). `npm run
+validar-sinonimos` estendido pra também validar que os códigos de `CNAES_POR_TERMO` existem de
+fato na tabela `cnaes`. Suíte inteira: **63/63 passando**. Gerei
+`leads/leads_oficina_mecânica_são_paulo_sp_2026-08-17T23-27-17.xlsx` (20 leads) pra confirmar
+visualmente — só oficina de carro/moto, nada de manutenção de elevador/aeronave/computador.
+
+---
+
+*Última atualização: 2026-08-17 — auditoria completa do dicionário de sinônimos CNAE achou e
+corrigiu 5 bugs adicionais do mesmo padrão da seção 26 (PET/BAR/MOVEIS/SEGUROS por colisão de
+substring; TRANSPORTADORA/AUTOPECAS por raiz curada ampla demais), com fix estrutural de
+word-boundary matching que resolve a classe toda, não só os casos achados (seção 27). Bug de
+matching de CNAE (nicho composto tratado como OR entre
+palavras) achado na homologação com gestores e corrigido, com nicho "ambiental" sem categoria
+própria de CNAE resolvido via lista curada de códigos (seção 26). Custos operacionais levantados e
+checklist de go-live consolidado no `BACKLOG.md` (seção 25); Épico 7 (Infraestrutura & Deploy) com
+as 6 histórias implementadas em `deploy/` + CI/CD, mas 🟡 até validar contra VPS real (seção 24);
+bug crítico de `confirmar_compra` exposto ao role `anon` achado e corrigido em produção (seção 23);
+ver seções 13-27 pro histórico recente.*

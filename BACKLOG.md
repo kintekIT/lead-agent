@@ -52,7 +52,7 @@ conveniente).
 ### Épico 3 — Motor & Regras de Negócio
 - [x] ✅ 3.1 — Dedup de leads por usuário (janela de 6 meses) — *depende de: 0.2 ✅, 0.3 ✅* — feito junto com 2.3
 - [x] ✅ 3.2 — Histórico de buscas + re-download — *depende de: 0.2 ✅* — `GET /api/buscas/:id/download` reaproveita `searches.arquivo` (já existia desde a migration fundacional), valida dono + status + arquivo em disco, nunca chama a RPC de entrega — sem custo de crédito. Botão "⬇ Baixar" em `conta.html` só aparece pra buscas concluídas. Validado de ponta a ponta contra o banco e servidor reais (ver `CONTEXTO.md`)
-- [x] ✅ 3.3 — Expansão do dicionário de sinônimos CNAE
+- [x] ✅ 3.3 — Expansão do dicionário de sinônimos CNAE — **fix 2026-08-17**: homologação com gestores achou nicho composto (ex.: "consultório ambiental") trazendo CNAE de área errada por causa de matching OR entre palavras, não AND; corrigido + nicho "ambiental" (sem categoria própria no CNAE) resolvido via lista curada de códigos (`CONTEXTO.md` seção 26). Auditoria completa do dicionário na sequência achou mais 5 bugs do mesmo padrão (`PET`/`BAR`/`MOVEIS`/`SEGUROS` por colisão de substring com palavra sem relação; `TRANSPORTADORA`/`AUTOPECAS`/`OFICINA`/`MECANICO` por raiz curada ampla demais) — todos corrigidos com fix estrutural (matching por início de palavra) + lista curada de código pros 3 nichos que precisavam. Ver `CONTEXTO.md` seção 27
 - [x] ✅ 3.4 — Qualidade dos resultados (matriz, telefone-lixo, email genérico, colunas extras)
 
 ## Fase 3 — Operação

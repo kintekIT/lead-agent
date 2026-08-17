@@ -1,6 +1,11 @@
 const Database = require('better-sqlite3');
 const path     = require('path');
-const { SINONIMOS } = require('../config/sinonimos-cnae');
+const {
+  SINONIMOS,
+  CNAES_POR_TERMO,
+  CNAES_EXCLUIDOS_POR_TERMO,
+  ehPalavraAmbigua,
+} = require('../config/sinonimos-cnae');
 
 const DB_PATH = path.join(__dirname, '../../data/receita.db');
 
@@ -14,16 +19,79 @@ function parsearRegiao(regiao) {
   return { cidade: normalizar(regiao.trim()), uf: null };
 }
 
+// Confere se `termo` aparece na descrição de forma segura pra matching:
+// - termo com espaço (frase curada, ex.: "ANIMAIS DE ESTIMACAO"): continua
+//   checado como substring simples — já é específico o bastante pra não
+//   colidir com nada por acidente.
+// - termo de uma palavra só: só casa se aparecer no INÍCIO de uma palavra
+//   da descrição, nunca no meio. Isso evita colisão tipo "móveis" casando
+//   dentro de "automóveis"/"imóveis", ou "bar" dentro de "embarcações".
+// Não resolve toda colisão possível — "medic" ainda bate em "medição"
+// porque as duas palavras realmente começam iguais em português; isso
+// exige lista curada de código (CNAES_POR_TERMO), não dá pra generalizar
+// só com string.
+function casaTermo(descricaoNormalizada, termo) {
+  if (termo.includes(' ')) return descricaoNormalizada.includes(termo);
+  return descricaoNormalizada.split(/[^A-Z]+/).some(palavra => palavra.startsWith(termo));
+}
+
 function expandirTermos(nicho) {
   const base = normalizar(nicho).split(/\s+/).filter(t => t.length >= 3);
-  const set  = new Set();
+  const especificas = new Set();
+  const genericas   = new Set();
+
   for (const t of base) {
-    set.add(t);
-    if (SINONIMOS[t]) set.add(SINONIMOS[t]);
-    // Stem simples: remove sufixo para casar variações (odontologia → odontolog)
-    if (t.length > 6) set.add(t.slice(0, -2));
+    const destino = ehPalavraAmbigua(t) ? genericas : especificas;
+    const temSinonimo = Boolean(SINONIMOS[t]);
+
+    // Palavra de 3-4 letras com sinônimo curado: a palavra crua não entra
+    // no set — em português, palavra tão curta quase sempre é prefixo de
+    // outra palavra sem relação nenhuma (ex.: "pet" prefixa "petróleo" e
+    // "espetáculo"; "bar" prefixa "barragem" e "barro"). O sinônimo curado
+    // já é específico o bastante sozinho.
+    if (!(temSinonimo && t.length <= 4)) destino.add(t);
+
+    if (temSinonimo) {
+      destino.add(SINONIMOS[t]);
+    } else if (t.length > 6) {
+      // Stem simples (corta sufixo pra casar variações, ex.: odontologia →
+      // odontolog) só entra quando NÃO há sinônimo curado — é um fallback
+      // pra nicho fora do dicionário. Quando já existe mapeamento manual,
+      // confiar nele é mais seguro que cortar 2 letras às cegas (ex.:
+      // "SEGUROS" → stem "SEGUR" colidia com "segurança").
+      destino.add(t.slice(0, -2));
+    }
   }
-  return [...set];
+
+  // Palavras "ambíguas" (consultório, escritório, clínica — ver
+  // PALAVRAS_AMBIGUAS_PREFIXOS em config/sinonimos-cnae.js) só entram na
+  // busca quando são a ÚNICA palavra do nicho, isto é, quando não há
+  // termo mais específico pra usar no lugar delas. Ex.: em "consultório
+  // ambiental" a busca usa só os termos de "ambiental"; digitado sozinho,
+  // "consultório" ainda cai no fallback abaixo em vez de não achar nada.
+  return especificas.size > 0 ? [...especificas] : [...genericas];
+}
+
+// Alguns nichos não têm uma palavra-raiz confiável na nomenclatura do CNAE
+// (ex.: "ambiental" — ver CNAES_POR_TERMO). Pra esses, a busca por texto é
+// complementada com uma lista curada de códigos.
+function expandirCodigos(nicho) {
+  const base = normalizar(nicho).split(/\s+/).filter(t => t.length >= 3);
+  const codigos = new Set();
+  for (const t of base) {
+    if (CNAES_POR_TERMO[t]) CNAES_POR_TERMO[t].forEach(c => codigos.add(c));
+  }
+  return [...codigos];
+}
+
+// Códigos que, mesmo casando por texto com algum termo (ver CNAES_EXCLUIDOS_POR_TERMO),
+// são falso-positivo conhecido e sempre descartados da busca textual.
+function codigosExcluidos(termos) {
+  const excluidos = new Set();
+  for (const t of termos) {
+    if (CNAES_EXCLUIDOS_POR_TERMO[t]) CNAES_EXCLUIDOS_POR_TERMO[t].forEach(c => excluidos.add(c));
+  }
+  return excluidos;
 }
 
 function distanciaLevenshtein(a, b) {
@@ -86,9 +154,12 @@ function buscarLeadsReceita(nicho, regiao, quantidade) {
   try {
     // 1. CNAEs: matching em JS (SQLite upper() ignora acentos)
     const termos = expandirTermos(nicho);
-    const cnaeCodigos = db.prepare('SELECT codigo, descricao FROM cnaes').all()
-      .filter(c => termos.some(t => normalizar(c.descricao).includes(t)))
+    const codigosDiretos = expandirCodigos(nicho);
+    const excluidos = codigosExcluidos(termos);
+    const cnaesPorTexto = db.prepare('SELECT codigo, descricao FROM cnaes').all()
+      .filter(c => !excluidos.has(c.codigo) && termos.some(t => casaTermo(normalizar(c.descricao), t)))
       .map(c => c.codigo);
+    const cnaeCodigos = [...new Set([...codigosDiretos, ...cnaesPorTexto])];
 
     if (cnaeCodigos.length === 0) {
       const sugestoes = sugerirTermos(nicho);
@@ -202,8 +273,10 @@ function buscarLeadsReceita(nicho, regiao, quantidade) {
 module.exports = {
   buscarLeadsReceita,
   expandirTermos,
+  expandirCodigos,
   sugerirTermos,
   normalizar,
+  casaTermo,
   ehTelefoneValido,
   formatarEndereco,
 };

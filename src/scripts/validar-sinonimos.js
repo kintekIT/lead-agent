@@ -12,6 +12,7 @@ const Database = require('better-sqlite3');
 const {
   SINONIMOS_VALIDADOS,
   SINONIMOS_NOVOS_PENDENTE_VALIDACAO,
+  CNAES_POR_TERMO,
 } = require('../config/sinonimos-cnae');
 
 const DB_PATH = path.join(__dirname, '../../data/receita.db');
@@ -35,6 +36,22 @@ function validarGrupo(grupo, nomeGrupo, descricoesNormalizadas) {
   return falhas;
 }
 
+// Confere se cada código listado em CNAES_POR_TERMO (nichos mapeados direto
+// por código, sem palavra-raiz confiável — ex.: "ambiental") existe de fato
+// na tabela `cnaes`, pra pegar erro de digitação no código.
+function validarCodigos(cnaesPorTermo, codigosValidos) {
+  let falhas = 0;
+  for (const [termo, codigos] of Object.entries(cnaesPorTermo)) {
+    for (const codigo of codigos) {
+      if (!codigosValidos.has(codigo)) {
+        falhas++;
+        console.error(`  ✗ [códigos diretos] "${termo}" referencia o código "${codigo}", que não existe na tabela cnaes`);
+      }
+    }
+  }
+  return falhas;
+}
+
 function main() {
   let db;
   try {
@@ -46,20 +63,22 @@ function main() {
     return;
   }
 
-  const descricoes = db.prepare('SELECT descricao FROM cnaes').all()
-    .map(r => normalizar(r.descricao));
+  const linhasCnaes = db.prepare('SELECT codigo, descricao FROM cnaes').all();
+  const descricoes = linhasCnaes.map(r => normalizar(r.descricao));
+  const codigosValidos = new Set(linhasCnaes.map(r => r.codigo));
   db.close();
 
   console.log(`Validando sinônimos contra ${descricoes.length} descrições de CNAE...\n`);
 
   const falhasValidados = validarGrupo(SINONIMOS_VALIDADOS, 'validados', descricoes);
   const falhasNovos = validarGrupo(SINONIMOS_NOVOS_PENDENTE_VALIDACAO, 'novos/pendentes', descricoes);
-  const total = falhasValidados + falhasNovos;
+  const falhasCodigos = validarCodigos(CNAES_POR_TERMO, codigosValidos);
+  const total = falhasValidados + falhasNovos + falhasCodigos;
 
   if (total === 0) {
-    console.log('✓ Todos os sinônimos batem com pelo menos uma descrição de CNAE.');
+    console.log('✓ Todos os sinônimos e códigos diretos batem com a base de CNAE.');
   } else {
-    console.log(`\n✗ ${total} raiz(es) sem correspondência. Corrija em src/config/sinonimos-cnae.js.`);
+    console.log(`\n✗ ${total} problema(s) encontrado(s). Corrija em src/config/sinonimos-cnae.js.`);
     process.exitCode = 1;
   }
 }
