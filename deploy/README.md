@@ -61,7 +61,7 @@ npm ci --omit=dev
 ```
 
 **`.env`**: nunca vai pelo git. Copie o conteúdo manualmente (SSH/SCP, nunca por canal público) —
-mesmas variáveis do `.env.example` na raiz, valores de produção (chaves reais do Supabase, `PIX_CHAVE`, `APP_ORIGIN=https://seu-dominio.com.br`, etc.).
+mesmas variáveis do `.env.example` na raiz, valores de produção (chaves reais do Supabase, `PIX_CHAVE`, `APP_ORIGIN=https://leadoor.com.br`, etc.).
 
 **`data/receita.db`** (~10,7GB — não vai pelo git, está no `.gitignore`): transfira do seu
 computador pro servidor com `rsync` (retomável, não recomeça do zero se cair a conexão):
@@ -93,7 +93,7 @@ Esse é o mesmo script que a história 7.4 (CI/CD) chama automaticamente depois 
 ## 7.3 — Domínio + Caddy + HTTPS
 
 **Antes de tudo:** aponte o domínio pro IP do VPS — registro DNS tipo `A`,
-`seu-dominio.com.br` → `SEU_IP` (no painel do seu provedor de domínio, ex.
+`leadoor.com.br` → `SEU_IP` (no painel do seu provedor de domínio, ex.
 registro.br). Espera propagar (pode levar de minutos a algumas horas) antes
 de seguir, senão o Caddy não consegue emitir o certificado.
 
@@ -107,8 +107,8 @@ sudo apt update
 sudo apt install -y caddy
 ```
 
-Editar `/etc/caddy/Caddyfile` com o conteúdo de [`Caddyfile`](Caddyfile) (troque
-`seu-dominio.com.br` pelo domínio real primeiro), depois:
+Editar `/etc/caddy/Caddyfile` com o conteúdo de [`Caddyfile`](Caddyfile) (já vem com
+`leadoor.com.br` configurado), depois:
 
 ```bash
 sudo systemctl reload caddy
@@ -119,7 +119,7 @@ O Caddy emite e renova o certificado Let's Encrypt sozinho — não precisa `cer
 **Não esqueça de atualizar o `.env`** no servidor com o domínio real, senão o CORS (história 4.1) bloqueia o próprio frontend:
 
 ```env
-APP_ORIGIN=https://seu-dominio.com.br
+APP_ORIGIN=https://leadoor.com.br
 ```
 
 e reiniciar (`pm2 reload deploy/ecosystem.config.js --update-env`).
@@ -128,7 +128,7 @@ e reiniciar (`pm2 reload deploy/ecosystem.config.js --update-env`).
 > Caddy como reverse proxy de confiança — sem isso, o rate limit por IP (história 4.1/4.3) veria
 > todo mundo vindo do mesmo IP (o do próprio Caddy) e quebraria silenciosamente em produção.
 
-Confirme com `curl -I https://seu-dominio.com.br/health` — deve responder `200` com certificado válido.
+Confirme com `curl -I https://leadoor.com.br/health` — deve responder `200` com certificado válido.
 
 ---
 

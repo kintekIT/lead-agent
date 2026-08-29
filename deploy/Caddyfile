@@ -1,11 +1,10 @@
 # História 7.3 — Caddy como reverse proxy: HTTPS automático (Let's Encrypt)
 # na frente da aplicação Node, que roda em localhost:3000 via pm2.
 #
-# Troque "seu-dominio.com.br" pelo domínio de verdade antes de copiar isso
-# pro servidor. Caddy renova o certificado sozinho — não precisa cron nem
-# certbot.
+# Caddy renova o certificado sozinho — não precisa cron nem certbot. Só
+# funciona depois que o DNS do domínio (registro A) apontar pro IP da VPS.
 
-seu-dominio.com.br {
+leadoor.com.br {
 	reverse_proxy localhost:3000
 
 	encode gzip

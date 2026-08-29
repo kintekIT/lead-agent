@@ -80,9 +80,9 @@ conveniente).
 ## Fase 4 — Produção
 
 ### Épico 7 — Infraestrutura & Deploy
-**Nenhuma história aqui foi validada contra infra real** — não havia VPS/domínio contratado quando foram implementadas (2026-07-25). Scripts/configs prontos em `deploy/` + guia em `deploy/README.md`; falta o "golden path" de verdade assim que houver servidor. Ver `CONTEXTO.md` seção 24 para o relato completo.
-- [x] 🟡 7.1 — Provisionar VPS com hardening — `deploy/setup-vps.sh` (usuário sudo, SSH só-chave, UFW, fail2ban, unattended-upgrades, swap, Node+pm2). Sintaxe validada (`bash -n`), não rodado contra VPS real
-- [x] 🟡 7.2 — Deploy da aplicação + upload do receita.db — *depende de: 7.1 🟡* — `deploy/deploy.sh` + `deploy/ecosystem.config.js` (pm2) + guia de transferência do banco via `rsync`
+**VPS contratada e 7.1 validada contra infra real em 2026-08-25** (Hostinger KVM 2, Brasil — 11ms de latência, `179.199.132.111`, `srv1928301.hstgr.cloud`, domínio `leadoor.com.br`). Demais histórias ainda usam scripts prontos em `deploy/` não rodados de verdade. Ver `CONTEXTO.md` seção 28 para o relato completo.
+- [x] ✅ 7.1 — Provisionar VPS com hardening — `deploy/setup-vps.sh` rodado e validado no servidor real: usuário `deploy` (sudo via regra `NOPASSWD` específica — segura porque o único caminho até esse usuário é a chave SSH; **aplicada na mão, o `setup-vps.sh` ainda não faz esse passo**), SSH só-chave (root desabilitado, confirmado), UFW (22/80/443), fail2ban ativo (achado curioso: baniu o próprio IP do operador durante o teste de que root estava bloqueado — resolvido via console do navegador), Node v24.19.0 + pm2 7.0.4, swap 2GB, timezone São Paulo
+- [x] 🟡 7.2 — Deploy da aplicação + upload do receita.db — *depende de: 7.1 ✅* — `deploy/deploy.sh` + `deploy/ecosystem.config.js` (pm2) + guia de transferência do banco via `rsync`
 - [x] 🟡 7.3 — Domínio + Caddy + HTTPS — *depende de: 7.2 🟡* — `deploy/Caddyfile` + guia; corrigido `app.set('trust proxy', 1)` em `src/server.js` (sem isso o rate limit por IP quebraria atrás do reverse proxy)
 - [x] 🟡 7.4 — CI/CD — deploy automático — *depende de: 7.2 🟡* — `.github/workflows/deploy.yml` (testa + faz deploy via SSH em push pra `main`); nunca rodou de verdade, falta cadastrar os secrets no GitHub
 - [x] 🟡 7.5 — Backups e limpeza de arquivos — `deploy/limpeza-diaria.sh` (leads/logs antigos) + guia de `supabase db dump` manual (plano Free não tem backup automático do Postgres)
@@ -98,7 +98,7 @@ conveniente).
 
 ## Pendências transversais (não são história, mas bloqueiam produção)
 
-- **Domínio próprio ainda não comprado** — é o gargalo que trava três coisas de uma vez: (1) verificar o domínio no Resend com SPF/DKIM no DNS, que é o que destrava e-mail pra qualquer usuário que não seja o dono da conta; (2) `APP_ORIGIN` de produção (CORS, história 4.1); (3) HTTPS automático do Caddy (7.3). Registro oficial: [registro.br](https://registro.br).
+- **Domínio comprado (`leadoor.com.br`, 2026-08-19) e VPS contratada (Hostinger KVM 2, Brasil, 2026-08-25)** — `deploy/Caddyfile` e `deploy/README.md` já atualizados com o domínio real; VPS hardenizada (história 7.1 ✅). Ainda falta apontar o DNS (registro A pro IP `179.199.132.111`) pra destravar: (1) verificar o domínio no Resend com SPF/DKIM no DNS, que é o que destrava e-mail pra qualquer usuário que não seja o dono da conta; (2) `APP_ORIGIN` de produção (CORS, história 4.1); (3) HTTPS automático do Caddy (7.3).
 - **Resend sem domínio verificado**: só entrega e-mail pro dono da própria conta (`kintekit@gmail.com`). Cadastro de qualquer outro usuário falha com 500 até resolver (verificar domínio, ou desativar SMTP customizado temporariamente, ou desligar "Confirm email" em dev). Achado em 2026-07-23.
 - **Preços dos pacotes de crédito são placeholder** (`src/config/pacotes-creditos.js`, R$99/199/349) — decisão de negócio dos sócios, não validar como definitivo.
 - **Texto dos Termos de Uso / Política de Privacidade é placeholder** (`public/termos.html`, história 4.5) — o aceite já é registrado no cadastro, mas o conteúdo precisa ser escrito/revisado antes de vender pra cliente real.
@@ -123,7 +123,7 @@ referência R$5,08/US$ (26/07/2026) — os itens em dólar variam com a cotaçã
 
 Cada item diz **o que confirmar** antes de considerar fechado.
 
-1. **Comprar o domínio** (registro.br) — destrava Resend, `APP_ORIGIN` e HTTPS de uma vez só.
+1. ✅ **Comprar o domínio** (`leadoor.com.br`, 2026-08-19) — destrava Resend, `APP_ORIGIN` e HTTPS de uma vez só.
 2. **Verificar o domínio no Resend** (registros SPF/DKIM no DNS) → confirmar: cadastro de um
    e-mail que **não** seja o `kintekit@gmail.com` recebe a confirmação, e não cai em spam.
 3. **`PIX_CHAVE` / `PIX_NOME_RECEBEDOR` / `PIX_CIDADE` reais no `.env`** → fecha a 2.5.

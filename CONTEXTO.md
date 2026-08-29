@@ -876,14 +876,63 @@ visualmente — só oficina de carro/moto, nada de manutenção de elevador/aero
 
 ---
 
-*Última atualização: 2026-08-17 — auditoria completa do dicionário de sinônimos CNAE achou e
-corrigiu 5 bugs adicionais do mesmo padrão da seção 26 (PET/BAR/MOVEIS/SEGUROS por colisão de
-substring; TRANSPORTADORA/AUTOPECAS por raiz curada ampla demais), com fix estrutural de
-word-boundary matching que resolve a classe toda, não só os casos achados (seção 27). Bug de
-matching de CNAE (nicho composto tratado como OR entre
-palavras) achado na homologação com gestores e corrigido, com nicho "ambiental" sem categoria
-própria de CNAE resolvido via lista curada de códigos (seção 26). Custos operacionais levantados e
-checklist de go-live consolidado no `BACKLOG.md` (seção 25); Épico 7 (Infraestrutura & Deploy) com
-as 6 histórias implementadas em `deploy/` + CI/CD, mas 🟡 até validar contra VPS real (seção 24);
-bug crítico de `confirmar_compra` exposto ao role `anon` achado e corrigido em produção (seção 23);
-ver seções 13-27 pro histórico recente.*
+## 28. Domínio comprado e VPS contratada — história 7.1 validada contra infra real (2026-08-19 / 2026-08-25)
+
+Fecha a pendência que a seção 25 chamou de "o gargalo mais barato e mais bloqueante do projeto".
+O Épico 7 saiu do papel: a 7.1 é a primeira história do épico que passou de 🟡 pra ✅ de verdade,
+rodada contra um servidor real e não só com `bash -n`.
+
+**Domínio (2026-08-19):** `leadoor.com.br`. `deploy/Caddyfile` e `deploy/README.md` já não têm
+mais o placeholder `seu-dominio.com.br` — está tudo com o domínio real, inclusive o
+`APP_ORIGIN=https://leadoor.com.br` que o CORS da 4.1 exige.
+
+**VPS (2026-08-25):** Hostinger KVM 2, região Brasil — `179.199.132.111`
+(`srv1928301.hstgr.cloud`), ~11ms de latência medida daqui. A escolha da região brasileira foi
+por latência: o servidor responde a busca e serve o `.xlsx` pro usuário final, então o RTT conta.
+
+**7.1 — `deploy/setup-vps.sh` rodado no servidor real, item por item confirmado:** usuário
+`deploy` criado, SSH só por chave (login de root remoto desabilitado — testado de verdade, não
+assumido), UFW com 22/80/443, fail2ban ativo, `unattended-upgrades`, timezone
+`America/Sao_Paulo`, swap de 2GB, Node v24.19.0 + pm2 7.0.4.
+
+**Achado 1 — o fail2ban baniu o IP do próprio operador durante o teste.** Confirmar que o root
+estava bloqueado significa tentar logar como root e falhar; várias tentativas seguidas é
+exatamente a assinatura de força bruta que o fail2ban existe pra cortar. Resultado: o IP de casa
+ficou banido e o SSH parou de responder por completo — inclusive pro usuário `deploy`, que estava
+funcionando. Resolvido pelo **console do navegador do painel da Hostinger**, que é acesso
+out-of-band e não passa pelo SSH nem pelo fail2ban. Lição pra próxima vez que alguém provisionar
+um servidor: o console web do provedor é a escada de incêndio — saber onde ele fica *antes* de
+mexer em SSH/firewall vale mais do que qualquer precaução no script.
+
+**Achado 2 — lacuna real entre o script e o que o servidor precisou (ainda não corrigida no
+script).** `setup-vps.sh` cria o `deploy` com `adduser --disabled-password` e o joga no grupo
+`sudo`, mas **nunca escreve uma regra `NOPASSWD`**. Um usuário sem senha definida não tem como
+responder ao prompt do `sudo` — ou seja, do jeito que o script termina, o `deploy` está no grupo
+sudo mas não consegue usar sudo. No servidor real isso foi resolvido na mão com uma regra
+`NOPASSWD` específica (não `ALL`), o que é seguro aqui porque o único caminho até esse usuário é
+a chave SSH. **O script segue sem esse passo**: se rodar de novo num servidor limpo, o mesmo
+ajuste manual vai ser necessário. Vale corrigir no `setup-vps.sh` antes que alguém provisione o
+segundo servidor achando que o script cobre tudo.
+
+**A confirmar antes da 7.2/7.6:** se o disco do plano contratado atende a recomendação de 60GB da
+seção 24 — o `receita.db` sozinho tem ~10,7GB e a atualização mensal (7.6) precisa de ~35GB
+livres durante a troca (banco atual + geração anterior + banco novo + ZIPs).
+
+**Próximo passo:** apontar o DNS — registro `A` de `leadoor.com.br` → `179.199.132.111`. É o que
+destrava três coisas de uma vez (verificação do domínio no Resend com SPF/DKIM, `APP_ORIGIN` de
+produção, e o certificado automático do Caddy, que só emite depois do DNS propagar). Depois disso,
+seguir a 7.2 (primeiro deploy manual + `rsync` do `receita.db`) na ordem do `deploy/README.md`.
+
+---
+
+*Última atualização: 2026-08-25 — domínio `leadoor.com.br` comprado e VPS contratada (Hostinger
+KVM 2, Brasil); história 7.1 validada contra infra real, primeira do Épico 7 a virar ✅, com dois
+achados registrados: fail2ban banindo o IP do operador durante o teste de root bloqueado, e a
+lacuna do `NOPASSWD` que o `setup-vps.sh` não cobre (seção 28). Falta apontar o DNS pra destravar
+Resend/`APP_ORIGIN`/HTTPS e seguir pra 7.2. Antes disso: auditoria completa do dicionário de
+sinônimos CNAE achou e corrigiu 5 bugs de colisão de substring/raiz ampla demais, com fix
+estrutural de word-boundary matching (seção 27), na sequência do bug de nicho composto achado na
+homologação com gestores (seção 26). Custos operacionais e checklist de go-live consolidados no
+`BACKLOG.md` (seção 25); resto do Épico 7 implementado em `deploy/` mas ainda 🟡 (seção 24); bug
+crítico de `confirmar_compra` exposto ao role `anon` corrigido em produção (seção 23); ver seções
+13-28 pro histórico recente.*
