@@ -1150,14 +1150,83 @@ o servidor de produção). Nada foi feito pela metade: ou rodou inteiro, ou não
 
 ---
 
-*Última atualização: 2026-08-30 — corrigido o `app.listen` pra escutar só em `127.0.0.1` (achado da
-seção 29), com `.env.example` ganhando `APP_ORIGIN`/`PORT`/`HOST`; commitado e enviado pra
-`kintekIT/main`, mas **ainda não aplicado no servidor** por bloqueio do classificador de auto-mode.
-Descoberto que a 7.6 está quebrada por um motivo diferente do que a seção 24 registrou: a RFB migrou
-os dados abertos pra um compartilhamento Nextcloud, então as URLs diretas do script dão 404 — não é
-bloqueio a robô, é mudança de mecanismo (seção 32). Antes, no mesmo dia: **https://leadoor.com.br no
-ar com HTTPS válido** (história 7.3), com `www` redirecionando pro apex e `trust proxy` confirmado em
-produção (seção 31). No dia anterior: 7.2 concluída com a aplicação sob pm2 e o banco da Receita
-transferido e validado (seção 30); DNS apontado e VPS conferida (seção 29); domínio comprado, VPS
-contratada e 7.1 validada (seção 28). Antes: auditoria do dicionário CNAE (seções 26-27); custos e
-go-live no `BACKLOG.md` (seção 25); bug do `confirmar_compra`/`anon` (seção 23); ver seções 13-32.*
+## 33. Épico 2 — história 2.7: pagamento com cartão via Mercado Pago (2026-08-30)
+
+História **nova, fora dos 9 épicos originais**. Surgiu de uma dúvida do Otávio sobre o que o time
+teria decidido (Pix ou cartão) e virou decisão: **os dois modelos** — pacote avulso agora (2.7) e
+assinatura recorrente depois (2.8, ainda não iniciada). Gateway escolhido: **Mercado Pago**, porque
+cobre cartão e Pix na mesma integração, o que abre caminho pra aposentar a fila manual da 6.3 sem
+trocar de fornecedor.
+
+**A 2.5 já tinha previsto isso.** O comentário da migration 0004 dizia literalmente que "webhook
+automático de gateway fica para uma história futura". Por isso o modelo de `purchases` não mudou de
+forma: continua pacote avulso com `pendente → pago`. Entraram só `metodo` e `gateway_pagamento_id`.
+
+**Por que uma função nova em vez de reusar `confirmar_compra()`.** A antiga levanta exceção se a
+compra não está `pendente` — correto pro clique manual de um admin, que precisa ser avisado de que
+a compra já foi paga. Errado pra webhook: **o Mercado Pago reenvia a mesma notificação até receber
+200**, e é normal a segunda chegar depois de a primeira já ter processado. Com exceção, o webhook
+responderia 500 e o MP reenviaria pra sempre. A `confirmar_compra_gateway()` devolve
+`'ja_processada'` sem erro nesse caso.
+
+**Decisões de segurança, cada uma fechando um buraco concreto:**
+- **`FOR UPDATE` no `select`** — o MP pode disparar duas notificações quase simultâneas; sem o lock,
+  as duas passariam pela checagem de status antes de qualquer uma gravar, **creditando em dobro**.
+- **Nunca confiar no corpo da notificação** — a rota consulta a API do MP pra saber status e valor. A
+  assinatura prova que a mensagem veio do MP; não prova o que ela afirma.
+- **Conferência de valor na RPC** — pagamento cujo valor não bate com o cobrado é recusado. Sem isso,
+  um link manipulado compraria o pacote de R$349 pagando R$99.
+- **Índice único em `gateway_pagamento_id`** — trava de banco contra o mesmo pagamento creditar duas
+  compras. Não depender só da checagem em código, que roda fora de transação.
+- **`timingSafeEqual` na assinatura** — comparação com `===` sai no primeiro byte diferente, e o
+  tempo de resposta vazaria a assinatura correta byte a byte pra quem medisse.
+- **`revoke` explícito de `anon`** na função nova — a lição da seção 23, onde exatamente esse
+  esquecimento deixou `confirmar_compra` chamável sem login.
+
+**Webhook fora de `/api` de propósito.** `app.use('/api', autenticar)` exige JWT de usuário e o
+Mercado Pago não tem como ter um. A rota é `POST /webhooks/mercadopago`, e a autenticação dela é a
+assinatura HMAC. Regra das respostas: **200 significa "não me mande de novo", 500 significa "tente
+mais tarde"** — responder 200 numa falha transitória perderia o pagamento em silêncio; responder 500
+num caso já decidido geraria reenvio eterno.
+
+**Sem SDK.** São três chamadas HTTP e o `fetch` é nativo no Node 18+. Um SDK adicionaria árvore de
+dependências pra auditar em troca de quase nada — e o `npm ci` do deploy já reportou 6
+vulnerabilidades em dependências transitivas (seção 30).
+
+**Detalhe de ponto flutuante que teria causado bug real:** `transaction_amount` vem em reais como
+número (`99.9`), e `99.9 * 100` dá `9989.999999999998` em JavaScript. Sem `Math.round`, a conferência
+de valor recusaria **compra legítima**. Coberto por teste.
+
+**Frontend:** dois botões por pacote. Cartão em destaque, Pix como secundário — o cartão credita
+sozinho, o Pix depende de um humano na fila da 6.3, e a hierarquia visual reflete isso. Na volta do
+checkout, a tela **não afirma que o crédito entrou**: quem credita é o webhook, que é assíncrono e
+pode chegar depois do usuário. Mostra "liberando seus créditos…" e reaproveita o mesmo polling do
+Pix até o status virar `pago`.
+
+**Também corrigido de passagem:** o `supabase/README.md` não listava a migration 0007 (a do bug do
+`anon`) — quem seguisse a lista pra montar um ambiente novo subiria com a falha de segurança.
+
+**Estado: 🟡, não ✅.** Faltam três coisas, todas dependentes de ação humana:
+1. **Aplicar `supabase/migrations/20260830120000_pagamento_cartao_mercadopago.sql`** no SQL Editor —
+   sem isso a RPC não existe e o webhook falha.
+2. **Cadastrar `MERCADOPAGO_ACCESS_TOKEN` e `MERCADOPAGO_WEBHOOK_SECRET`** no `.env` de produção
+   (credenciais de teste primeiro), e configurar a URL do webhook no painel do MP apontando pra
+   `https://leadoor.com.br/webhooks/mercadopago`.
+3. **Teste ponta a ponta com cartão de teste do MP** — comprar, ver o webhook chegar, e confirmar
+   que o saldo subiu e que uma segunda notificação do mesmo pagamento não credita de novo.
+
+Enquanto o token não existir, a rota responde 503 e **o resto do sistema segue idêntico** — mesma
+degradação graciosa do Pix e do Sentry. É seguro estar na `main` sem estar configurado.
+
+---
+
+*Última atualização: 2026-08-30 — história 2.7 (pagamento com cartão via Mercado Pago) implementada e
+mergeada como 🟡: falta aplicar a migration, cadastrar as credenciais e testar ponta a ponta. Decidido
+que o produto terá pacote avulso **e** assinatura recorrente; a assinatura virou a 2.8, ainda não
+iniciada, e muda o modelo de dados (seção 33). Antes, no mesmo dia: `app.listen` restrito a
+`127.0.0.1`, e descoberto que a 7.6 está quebrada porque a RFB migrou os dados abertos pra um
+compartilhamento Nextcloud (seção 32); **https://leadoor.com.br no ar com HTTPS válido** (história
+7.3, seção 31); 7.2 concluída com a aplicação sob pm2 e o banco da Receita validado (seção 30); DNS
+apontado e VPS conferida (seção 29); domínio comprado, VPS contratada e 7.1 validada (seção 28).
+Antes: auditoria do dicionário CNAE (seções 26-27); custos e go-live no `BACKLOG.md` (seção 25); bug
+do `confirmar_compra`/`anon` (seção 23); ver seções 13-33.*

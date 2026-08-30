@@ -48,6 +48,8 @@ conveniente).
 - [x] ✅ 2.4 — Prévia pré-consumo — *depende de: 3.1 ✅*
 - [x] 🟡 2.5 — Página de planos + compra via Pix — *depende de: 2.2 ✅, 6.3 🟡* — **código pronto, falta `PIX_CHAVE`/`PIX_NOME_RECEBEDOR`/`PIX_CIDADE` reais no `.env` pra funcionar de verdade**
 - [x] ✅ 2.6 — Saldo zerado → volta a free — *depende de: 2.2 ✅*
+- [x] 🟡 2.7 — Pagamento com cartão (Mercado Pago) — *depende de: 2.2 ✅, 2.5 🟡* — **história nova, fora dos 9 épicos originais** (decidida em 2026-08-30). Compra avulsa de pacote pagando com cartão, confirmada **automaticamente por webhook** — sem fila manual. Código pronto: migration `20260830120000`, `src/pagamentos/mercadopago.js` (sem SDK, só `fetch` + `node:crypto`), `POST /api/compras` com `metodo`, `POST /webhooks/mercadopago` com validação de assinatura HMAC, botões na tela de planos. 74/74 testes. **Falta: aplicar a migration no SQL Editor + cadastrar `MERCADOPAGO_ACCESS_TOKEN`/`MERCADOPAGO_WEBHOOK_SECRET` no `.env` + teste ponta a ponta com cartão de teste do MP.** Ver `CONTEXTO.md` seção 33
+- [ ] ⬜ 2.8 — Assinatura mensal recorrente — *depende de: 2.7 🟡* — decidido em 2026-08-30 que o produto terá **os dois modelos** (pacote avulso + assinatura). Não iniciada. Diferente da 2.7, **muda o modelo de dados**: precisa de tabela de assinaturas, renovação automática (API de preapproval do MP), tratamento de cobrança recusada, decisão sobre crédito não usado no fim do ciclo (acumula ou expira) e fluxo de cancelamento. Fazer só depois da 2.7 validada em produção
 
 ### Épico 3 — Motor & Regras de Negócio
 - [x] ✅ 3.1 — Dedup de leads por usuário (janela de 6 meses) — *depende de: 0.2 ✅, 0.3 ✅* — feito junto com 2.3

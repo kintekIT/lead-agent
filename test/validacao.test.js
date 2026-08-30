@@ -177,3 +177,22 @@ test('middleware validar() responde 400 com detalhes por campo em caso de erro',
   assert.ok(Array.isArray(corpo.detalhes));
   assert.ok(corpo.detalhes.length > 0);
 });
+
+// ── História 2.7: método de pagamento no corpo da compra ──
+
+test('compraBodySchema usa pix_manual como método padrão (compatibilidade com o frontend da 2.5)', () => {
+  const r = compraBodySchema.safeParse({ pacote: '200' });
+  assert.equal(r.success, true);
+  assert.equal(r.data.metodo, 'pix_manual');
+});
+
+test('compraBodySchema aceita mercadopago como método', () => {
+  const r = compraBodySchema.safeParse({ pacote: '500', metodo: 'mercadopago' });
+  assert.equal(r.success, true);
+  assert.equal(r.data.metodo, 'mercadopago');
+});
+
+test('compraBodySchema rejeita método de pagamento desconhecido', () => {
+  const r = compraBodySchema.safeParse({ pacote: '500', metodo: 'boleto' });
+  assert.equal(r.success, false);
+});
