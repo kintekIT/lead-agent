@@ -990,14 +990,76 @@ aberto por engano.
 
 ---
 
-*Última atualização: 2026-08-29 — DNS apontado (registro `A` de `leadoor.com.br` →
-`179.199.132.111`), domínio em transição no Registro.br; VPS conferida por SSH (96 GB de disco,
-resolve a dúvida da seção 28); transferência do `receita.db` redefinida pra `sftp`+`reput` do zip de
-4,3 GB porque o Git Bash do Windows não tem `rsync`; achado o `app.listen` sem host, que deixa a
-porta 3000 exposta se o firewall falhar (seção 29). Antes disso: domínio comprado e VPS contratada,
-com a história 7.1 validada contra infra real e os achados do fail2ban e do `NOPASSWD` (seção 28);
-auditoria completa do dicionário de sinônimos CNAE com fix estrutural de word-boundary matching
-(seção 27), na sequência do bug de nicho composto achado na homologação com gestores (seção 26);
-custos operacionais e checklist de go-live no `BACKLOG.md` (seção 25); resto do Épico 7 implementado
-em `deploy/` mas ainda 🟡 (seção 24); bug crítico de `confirmar_compra` exposto ao role `anon`
-corrigido em produção (seção 23); ver seções 13-29 pro histórico recente.*
+## 30. Épico 7 — história 7.2 executada de verdade: aplicação no ar na VPS (2026-08-29)
+
+Segunda história do Épico 7 a sair de 🟡 pra ✅. A aplicação está rodando no servidor real, servindo
+a interface e respondendo à API — falta só o Caddy (7.3) pra existir endereço público com HTTPS.
+
+**Origem do código:** clonado de `https://github.com/kintekIT/lead-agent.git`, que é **público** —
+a VPS baixou sem credencial nenhuma, o que simplifica o deploy e a 7.4 (CI/CD). O fork
+`Levartosky/lead-agent` é privado e está desatualizado. Commit em produção: `6f02b92`.
+
+**Dependências (`npm ci --omit=dev`):** o risco real aqui era o `better-sqlite3`, que tem parte em
+C e precisa de binário compilado pro sistema de destino — se não houvesse prebuild pro Node 24 em
+Linux x64, exigiria instalar toolchain de compilação na VPS. Resolveu sozinho; confirmado com
+`require('better-sqlite3')` carregando sem erro. O npm 11 avisa que os install scripts do pacote não
+estão cobertos por `allowScripts`, mas o binário nativo foi produzido mesmo assim.
+
+**Transferência do banco — o caminho novo funcionou:** `data/receita-db.zip` (4.513.202.936 bytes)
+enviado por `sftp put`, conferido byte a byte nas duas pontas, descompactado no servidor pra
+11.193.733.120 bytes (idêntico ao original) e validado com consulta real: `empresas` 68.629.147
+linhas, `estabelecimentos` 23.931.353, `municipios` 5.572, `cnaes` 1.359. Zip removido depois.
+Disco final: 15GB usados de 96GB, **82GB livres** — folgado inclusive pros ~35GB que a atualização
+mensal (7.6) consome durante a troca.
+
+**Duas armadilhas do `sftp` descobertas na prática** (guia corrigido em `deploy/README.md`):
+- `reput` **exige que já exista um arquivo parcial** no servidor — ele retoma, não inicia. Usado no
+  primeiro envio, falha com `stat remote: No such file or directory`.
+- `sftp -b` (modo batch) **sai com código 0 mesmo quando o comando interno falha**. O primeiro envio
+  desta sessão "terminou com sucesso" sem ter transferido um byte. **Sempre conferir o tamanho do
+  arquivo no destino**, nunca confiar no código de saída.
+
+**`.env` de produção:** copiado por `scp` do `.env` local, `chmod 600`. **`APP_ORIGIN` não existia no
+arquivo local** (nem está no `.env.example`, ver seção 29) — acrescentado como
+`https://leadoor.com.br`. Confirmado ativo pelo header `access-control-allow-origin:
+https://leadoor.com.br` nas respostas.
+
+`ANTHROPIC_API_KEY` e `GEMINI_API_KEY` estão com placeholder, e **isso é aceitável**: `server.js`
+recusa o modo `agente` com 400 e mensagem explícita mandando usar o modo RPA. Os dois motores que
+importam (RPA e Receita Federal) não dependem de chave de IA. O único segredo real no arquivo é a
+`SUPABASE_SERVICE_ROLE_KEY`.
+
+**Processo sob pm2:** `pm2 start deploy/ecosystem.config.js` + `pm2 save` + `pm2 startup systemd`.
+A unit `pm2-deploy` ficou `enabled` (sobe no boot); o `pm2 startup` precisou de sudo e passou pela
+regra `NOPASSWD` da seção 28 sem pedir senha. **Ainda não testado com reboot de verdade** — enquanto
+não há tráfego real, é um teste barato de fazer.
+
+**Validação de ponta a ponta, por dentro do servidor:**
+- `GET /health` → 200 `{"ok":true}` em 9ms
+- `GET /` → 200, 35.914 bytes (interface completa)
+- `GET /api/me` sem token → **401** (autenticação funcionando)
+- headers de segurança do helmet presentes, `connect-src` do CSP com a URL do Supabase
+
+**Exposição da porta 3000 — verificada, mas segue com uma camada só.** `curl` externo em
+`http://179.199.132.111:3000/health` não obtém resposta: o UFW bloqueia. Mas o achado da seção 29
+continua valendo e **agora é concreto**, porque a aplicação está de fato escutando em todas as
+interfaces — o UFW é a única coisa entre a porta 3000 e a internet. A correção (`app.listen(PORT,
+'127.0.0.1')`) segue pendente.
+
+**Estado do Épico 7:** 7.1 ✅, 7.2 ✅, 7.3 esperando a transição do DNS terminar pra emitir o
+certificado, 7.4/7.5/7.6 ainda 🟡.
+
+---
+
+*Última atualização: 2026-08-29 — história 7.2 concluída: aplicação rodando na VPS sob pm2, banco da
+Receita transferido (zip de 4,3GB por `sftp`, validado byte a byte e por consulta real) e `.env` de
+produção no lugar; validada por dentro (`/health` 200, `/api/me` 401, CORS com o domínio real).
+Descobertas duas armadilhas do `sftp` (`reput` exige arquivo parcial; `-b` sai 0 mesmo falhando) e
+corrigido o guia (seção 30). No mesmo dia: DNS apontado e domínio em transição no Registro.br, VPS
+conferida (96GB de disco), e achado o `app.listen` sem host que deixa a porta 3000 protegida só pelo
+UFW — ainda não corrigido (seção 29). Antes: domínio comprado e VPS contratada com a 7.1 validada
+contra infra real, achados do fail2ban e do `NOPASSWD` (seção 28); auditoria do dicionário de
+sinônimos CNAE com fix estrutural de word-boundary matching (seção 27) e o bug de nicho composto da
+homologação com gestores (seção 26); custos e go-live no `BACKLOG.md` (seção 25); bug crítico de
+`confirmar_compra` exposto ao `anon` corrigido em produção (seção 23); ver seções 13-30 pro
+histórico recente.*

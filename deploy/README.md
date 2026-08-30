@@ -81,9 +81,20 @@ interrompido de onde parou (é a propriedade que motivava o `rsync` aqui):
 sftp -i ~/.ssh/SUA_CHAVE deploy@SEU_IP
 # dentro do sftp:
 cd lead-agent/data
-reput data/receita-db.zip     # se cair, rode o MESMO comando de novo: ele retoma
+put data/receita-db.zip       # primeiro envio
 bye
 ```
+
+**Se a conexão cair no meio**, reconecte e use `reput` (não `put`) pra continuar de onde parou:
+
+```bash
+reput data/receita-db.zip
+```
+
+> ⚠️ `reput` **só funciona se já existir** um arquivo parcial no servidor — ele retoma, não inicia.
+> Usá-lo no primeiro envio falha com `stat remote: No such file or directory`. E atenção: o `sftp`
+> em modo batch (`-b`) **sai com código 0 mesmo quando o comando falha**, então confira o tamanho
+> do arquivo no servidor em vez de confiar no código de saída.
 
 Evite `scp` pra esse arquivo: ele não retoma, e uma queda no fim de 4,3GB recomeça do zero.
 
