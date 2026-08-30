@@ -63,12 +63,35 @@ npm ci --omit=dev
 **`.env`**: nunca vai pelo git. Copie o conteúdo manualmente (SSH/SCP, nunca por canal público) —
 mesmas variáveis do `.env.example` na raiz, valores de produção (chaves reais do Supabase, `PIX_CHAVE`, `APP_ORIGIN=https://leadoor.com.br`, etc.).
 
-**`data/receita.db`** (~10,7GB — não vai pelo git, está no `.gitignore`): transfira do seu
-computador pro servidor com `rsync` (retomável, não recomeça do zero se cair a conexão):
+**`data/receita.db`** (11,2GB — não vai pelo git, está no `.gitignore`): transfira do seu
+computador pro servidor. **Mande o zip, não o `.db` cru** — `data/receita-db.zip` tem 4,3GB e
+contém exatamente o mesmo banco, ou seja, 61% menos dados trafegados.
+
+**No Linux/Mac** (tem `rsync`, que é retomável):
 
 ```bash
-# do seu computador (Windows: rode isso no Git Bash/WSL, rsync não existe no cmd/PowerShell)
-rsync -avz --progress --partial data/receita.db deploy@SEU_IP:~/lead-agent/data/
+rsync -avz --progress --partial data/receita-db.zip deploy@SEU_IP:~/lead-agent/data/
+```
+
+**No Windows**: `rsync` **não existe no Git Bash** (nem no cmd/PowerShell) — só via WSL. Sem WSL,
+use `sftp`, que vem junto do OpenSSH do Git Bash e cujo comando `reput` retoma um envio
+interrompido de onde parou (é a propriedade que motivava o `rsync` aqui):
+
+```bash
+sftp -i ~/.ssh/SUA_CHAVE deploy@SEU_IP
+# dentro do sftp:
+cd lead-agent/data
+reput data/receita-db.zip     # se cair, rode o MESMO comando de novo: ele retoma
+bye
+```
+
+Evite `scp` pra esse arquivo: ele não retoma, e uma queda no fim de 4,3GB recomeça do zero.
+
+**Descompactar no servidor** — `unzip` não vem instalado na imagem padrão:
+
+```bash
+sudo apt install -y unzip
+cd ~/lead-agent/data && unzip receita-db.zip && rm receita-db.zip
 ```
 
 Depois disso, suba o processo com `pm2` usando [`ecosystem.config.js`](ecosystem.config.js):

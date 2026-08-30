@@ -925,14 +925,79 @@ seguir a 7.2 (primeiro deploy manual + `rsync` do `receita.db`) na ordem do `dep
 
 ---
 
-*Última atualização: 2026-08-25 — domínio `leadoor.com.br` comprado e VPS contratada (Hostinger
-KVM 2, Brasil); história 7.1 validada contra infra real, primeira do Épico 7 a virar ✅, com dois
-achados registrados: fail2ban banindo o IP do operador durante o teste de root bloqueado, e a
-lacuna do `NOPASSWD` que o `setup-vps.sh` não cobre (seção 28). Falta apontar o DNS pra destravar
-Resend/`APP_ORIGIN`/HTTPS e seguir pra 7.2. Antes disso: auditoria completa do dicionário de
-sinônimos CNAE achou e corrigiu 5 bugs de colisão de substring/raiz ampla demais, com fix
-estrutural de word-boundary matching (seção 27), na sequência do bug de nicho composto achado na
-homologação com gestores (seção 26). Custos operacionais e checklist de go-live consolidados no
-`BACKLOG.md` (seção 25); resto do Épico 7 implementado em `deploy/` mas ainda 🟡 (seção 24); bug
-crítico de `confirmar_compra` exposto ao role `anon` corrigido em produção (seção 23); ver seções
-13-28 pro histórico recente.*
+## 29. DNS apontado, VPS conferida e caminho de transferência do `receita.db` redefinido (2026-08-29)
+
+Sessão de continuação da seção 28. O passo que aquela seção deixou como "próximo" foi executado, e
+a conferência da VPS por SSH respondeu a dúvida que tinha ficado em aberto.
+
+**DNS apontado.** Registro `A` criado no painel do Registro.br: `leadoor.com.br` →
+`179.199.132.111`. Foi pelo caminho **DNS → Configurar endereçamento** (modo simples), campo
+"Endereço do site", que aceita IPv4 direto. Confirmado resolvendo em `b.auto.dns.br`
+(autoritativo) e no `8.8.8.8`; o `a.auto.dns.br` ainda não tinha replicado no momento da
+verificação. O domínio entrou em estado **"em transição"** (~2h anunciadas no painel), que é o
+Registro.br sincronizando os dois autoritativos — durante ele o editor de zona mostra "Nenhum dado
+encontrado" e recusa alterações. Não é erro; é só esperar.
+
+**Achados do painel do Registro.br** (valem pra próxima vez que alguém mexer lá):
+- O modo simples ("Configurar endereçamento") só cria o `A` do domínio raiz. **`www` e os TXT do
+  Resend exigem o modo avançado** ("Configurar zona DNS"), que só libera depois da transição.
+- O modo avançado **não aceita os caracteres `@` nem `*`**, e o nome do registro vai por extenso
+  (`www.leadoor.com.br`, não `www`) — diferente da convenção da maioria dos painéis.
+- Deixar o campo "Servidor de e-mail" vazio fez o painel criar um **MX nulo** (`MX 0 .`) no apex,
+  que é a declaração formal de "este domínio não recebe e-mail". Está correto pro cenário atual (o
+  Resend só *envia* em nome do domínio), mas **tem que ser removido** se um dia quiserem um
+  `contato@leadoor.com.br` recebendo mensagem.
+
+**Titularidade (via whois).** O domínio está no nome de **Giovanni Campos**
+(`giovannicamposbiazioli@gmail.com`). No Registro.br o login é o CPF do titular e não existe acesso
+compartilhado nem convite de equipe — qualquer alteração de DNS depende dele ou de acesso cedido
+por ele. Data real de criação: **12/08/2026** (expira 12/08/2027); o `BACKLOG.md` dizia 19/08,
+corrigido.
+
+**VPS conferida por SSH — resolve a pendência da seção 28.** Disco de **96 GB com 93 GB livres**,
+folgado pra recomendação de 60 GB da seção 24. 7,8 GB de RAM, Node v24.19.0, pm2 7.0.4, git 2.43.0.
+Caddy ainda não instalado e repositório ainda não clonado — a 7.2 não tinha começado.
+
+**Transferência do `receita.db` redefinida — o guia não funciona no Windows.** O
+`deploy/README.md` manda usar `rsync`, mas **o Git Bash do Windows não tem `rsync`** (a VPS tem; o
+problema é o lado do operador). Mesma família de lacuna do `NOPASSWD` da seção 28: o guia foi
+escrito pressupondo Linux/Mac. Caminho adotado no lugar:
+
+- Enviar `data/receita-db.zip` (**4,3 GB**, contém exatamente o `receita.db` de 11,19 GB) em vez do
+  `.db` cru — **61% menos dados trafegados**.
+- Usar `sftp` com o comando `reput`, que **retoma de onde parou** se a conexão cair. Era essa a
+  propriedade que motivava o `rsync` no guia original, e o `sftp` a tem nativamente no OpenSSH que
+  já vem no Git Bash.
+- Descompactar no servidor — **exige instalar `unzip`**, que não vem na imagem da Hostinger.
+- O link do Google Drive guardado como referência **foi descartado**: aponta pra uma geração antiga
+  de 5,2 GB, e a base atual tem 11,19 GB.
+
+**Achado de código — `app.listen` sem host (não corrigido ainda).** `src/server.js` faz
+`app.listen(PORT, ...)` sem endereço, o que faz o Node escutar em **todas as interfaces de rede**, e
+não só na interna. Na prática, assim que a aplicação subir, ela responde em `179.199.132.111:3000`
+em HTTP puro, contornando o Caddy — hoje o único obstáculo é o UFW bloquear a porta. Pior: com
+`app.set('trust proxy', 1)` (seção 24), quem alcançasse a 3000 diretamente poderia forjar o
+cabeçalho `X-Forwarded-For` e se passar por qualquer IP, furando o rate limit das histórias 4.1/4.3.
+Correção é trocar por `app.listen(PORT, '127.0.0.1', ...)` — o Caddy continua funcionando porque
+fala de dentro da própria máquina, e a porta deixa de existir pro mundo mesmo se o firewall for
+aberto por engano.
+
+**Achado menor:** `.env.example` não lista `APP_ORIGIN`, apesar de o código usar a variável
+(`src/middleware/seguranca.js`) e o `deploy/README.md` cobrar ela no `.env` de produção.
+
+**Estado no fim da sessão:** DNS apontado e propagando; 7.2 pronta pra começar (não depende de DNS);
+7.3 esperando a transição terminar pra emitir o certificado.
+
+---
+
+*Última atualização: 2026-08-29 — DNS apontado (registro `A` de `leadoor.com.br` →
+`179.199.132.111`), domínio em transição no Registro.br; VPS conferida por SSH (96 GB de disco,
+resolve a dúvida da seção 28); transferência do `receita.db` redefinida pra `sftp`+`reput` do zip de
+4,3 GB porque o Git Bash do Windows não tem `rsync`; achado o `app.listen` sem host, que deixa a
+porta 3000 exposta se o firewall falhar (seção 29). Antes disso: domínio comprado e VPS contratada,
+com a história 7.1 validada contra infra real e os achados do fail2ban e do `NOPASSWD` (seção 28);
+auditoria completa do dicionário de sinônimos CNAE com fix estrutural de word-boundary matching
+(seção 27), na sequência do bug de nicho composto achado na homologação com gestores (seção 26);
+custos operacionais e checklist de go-live no `BACKLOG.md` (seção 25); resto do Épico 7 implementado
+em `deploy/` mas ainda 🟡 (seção 24); bug crítico de `confirmar_compra` exposto ao role `anon`
+corrigido em produção (seção 23); ver seções 13-29 pro histórico recente.*

@@ -98,7 +98,7 @@ conveniente).
 
 ## Pendências transversais (não são história, mas bloqueiam produção)
 
-- **Domínio comprado (`leadoor.com.br`, 2026-08-19) e VPS contratada (Hostinger KVM 2, Brasil, 2026-08-25)** — `deploy/Caddyfile` e `deploy/README.md` já atualizados com o domínio real; VPS hardenizada (história 7.1 ✅). Ainda falta apontar o DNS (registro A pro IP `179.199.132.111`) pra destravar: (1) verificar o domínio no Resend com SPF/DKIM no DNS, que é o que destrava e-mail pra qualquer usuário que não seja o dono da conta; (2) `APP_ORIGIN` de produção (CORS, história 4.1); (3) HTTPS automático do Caddy (7.3).
+- **Domínio comprado (`leadoor.com.br`, 2026-08-12) e VPS contratada (Hostinger KVM 2, Brasil, 2026-08-25)** — `deploy/Caddyfile` e `deploy/README.md` já atualizados com o domínio real; VPS hardenizada (história 7.1 ✅). **Registro `A` apontado em 2026-08-29** (`leadoor.com.br` → `179.199.132.111`, via painel do Registro.br); domínio em transição por ~2h, o que trava novas edições na zona. Ainda falta, quando a transição terminar: (1) verificar o domínio no Resend com SPF/DKIM no DNS, que é o que destrava e-mail pra qualquer usuário que não seja o dono da conta; (2) `APP_ORIGIN` de produção (CORS, história 4.1); (3) HTTPS automático do Caddy (7.3).
 - **Resend sem domínio verificado**: só entrega e-mail pro dono da própria conta (`kintekit@gmail.com`). Cadastro de qualquer outro usuário falha com 500 até resolver (verificar domínio, ou desativar SMTP customizado temporariamente, ou desligar "Confirm email" em dev). Achado em 2026-07-23.
 - **Preços dos pacotes de crédito são placeholder** (`src/config/pacotes-creditos.js`, R$99/199/349) — decisão de negócio dos sócios, não validar como definitivo.
 - **Texto dos Termos de Uso / Política de Privacidade é placeholder** (`public/termos.html`, história 4.5) — o aceite já é registrado no cadastro, mas o conteúdo precisa ser escrito/revisado antes de vender pra cliente real.
@@ -123,7 +123,7 @@ referência R$5,08/US$ (26/07/2026) — os itens em dólar variam com a cotaçã
 
 Cada item diz **o que confirmar** antes de considerar fechado.
 
-1. ✅ **Comprar o domínio** (`leadoor.com.br`, 2026-08-19) — destrava Resend, `APP_ORIGIN` e HTTPS de uma vez só.
+1. ✅ **Comprar o domínio** (`leadoor.com.br`, 2026-08-12) — destrava Resend, `APP_ORIGIN` e HTTPS de uma vez só.
 2. **Verificar o domínio no Resend** (registros SPF/DKIM no DNS) → confirmar: cadastro de um
    e-mail que **não** seja o `kintekit@gmail.com` recebe a confirmação, e não cai em spam.
 3. **`PIX_CHAVE` / `PIX_NOME_RECEBEDOR` / `PIX_CIDADE` reais no `.env`** → fecha a 2.5.
