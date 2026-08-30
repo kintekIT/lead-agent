@@ -1051,15 +1051,70 @@ certificado, 7.4/7.5/7.6 ainda 🟡.
 
 ---
 
-*Última atualização: 2026-08-29 — história 7.2 concluída: aplicação rodando na VPS sob pm2, banco da
-Receita transferido (zip de 4,3GB por `sftp`, validado byte a byte e por consulta real) e `.env` de
-produção no lugar; validada por dentro (`/health` 200, `/api/me` 401, CORS com o domínio real).
-Descobertas duas armadilhas do `sftp` (`reput` exige arquivo parcial; `-b` sai 0 mesmo falhando) e
-corrigido o guia (seção 30). No mesmo dia: DNS apontado e domínio em transição no Registro.br, VPS
-conferida (96GB de disco), e achado o `app.listen` sem host que deixa a porta 3000 protegida só pelo
-UFW — ainda não corrigido (seção 29). Antes: domínio comprado e VPS contratada com a 7.1 validada
-contra infra real, achados do fail2ban e do `NOPASSWD` (seção 28); auditoria do dicionário de
-sinônimos CNAE com fix estrutural de word-boundary matching (seção 27) e o bug de nicho composto da
-homologação com gestores (seção 26); custos e go-live no `BACKLOG.md` (seção 25); bug crítico de
-`confirmar_compra` exposto ao `anon` corrigido em produção (seção 23); ver seções 13-30 pro
-histórico recente.*
+## 31. Épico 7 — história 7.3: domínio no ar com HTTPS (2026-08-30)
+
+**O produto tem endereço público: https://leadoor.com.br.** Terceira história do Épico 7 a virar ✅.
+
+**Transição do DNS concluída.** Os quatro resolvedores verificados (`a.auto.dns.br`,
+`b.auto.dns.br`, `8.8.8.8`, `1.1.1.1`) respondem `179.199.132.111`.
+
+**O `www` já existia** como alias apontando pro domínio raiz — não fomos nós que criamos, veio do
+padrão do Registro.br. Isso tornou o tratamento dele **obrigatório**, não opcional: sem uma entrada
+no Caddyfile, quem digitasse `www.leadoor.com.br` receberia erro de certificado. Resolvido com
+redirect 301 pro apex, e **a razão não é estética**: o `APP_ORIGIN` (CORS, história 4.1) é
+`https://leadoor.com.br`; navegar pelo `www` faria a página abrir mas toda chamada à API seria
+cross-origin e o navegador a bloquearia — o site pareceria carregado e nenhum botão funcionaria.
+Uma origem canônica elimina a classe inteira desse problema.
+
+**Caddy v2.11.4** instalado do repositório oficial, conforme o guia.
+
+**Erro cometido e corrigido — `sudo caddy validate` sabota o serviço.** Rodar
+`sudo caddy validate --config /etc/caddy/Caddyfile` (passo bem-intencionado, pra conferir a sintaxe
+antes de aplicar) **cria o arquivo de log como `root:root` com modo 600**. O serviço roda como
+usuário `caddy`, que depois não consegue abrir o próprio arquivo — o `systemctl reload` falha com
+`permission denied` e o Caddy segue servindo a configuração antiga. Sintoma enganoso: `systemctl
+is-active` responde `active`, porque o processo velho continua de pé. Correção:
+`sudo chown caddy:caddy /var/log/caddy/*.log`. **Pra não repetir: validar sem sudo, ou conferir o
+dono dos arquivos de log depois de qualquer validação com sudo.**
+
+**Emissão do certificado — a queda que o Caddy resolveu sozinho.** O desafio `tls-alpn-01` do
+domínio raiz falhou com `Timeout during connect (likely firewall problem)` na *secondary validation*
+da Let's Encrypt (ela valida de mais de um ponto da rede). O `www` passou de primeira. Sem
+intervenção nenhuma, o Caddy caiu automaticamente pro método `http-01` e emitiu o certificado do
+apex 14 segundos depois. **É exatamente o tipo de resiliência que justifica usar Caddy em vez de
+certbot com cron** — com script manual, isso teria virado uma falha de deploy.
+
+**Validação externa, pela internet:**
+- `https://leadoor.com.br/health` → 200, certificado válido (`ssl_verify_result: 0`)
+- `https://leadoor.com.br/` → 200, 35.914 bytes
+- `http://leadoor.com.br/` → **308** pra HTTPS (redirecionamento automático do Caddy)
+- `https://www.leadoor.com.br/` → **301** pro apex
+- `https://leadoor.com.br/api/me` sem token → **401**
+
+**`trust proxy` confirmado em produção** — era o risco que a seção 24 destacava. Os logs mostram
+`x-forwarded-for` com o IP público real do cliente e `remoteAddress: ::1` (o Caddy falando por
+dentro da máquina). Ou seja, o `express-rate-limit` está contando por visitante de verdade, e não
+tratando o mundo inteiro como um IP só.
+
+**Estado do Épico 7:** 7.1 ✅, 7.2 ✅, 7.3 ✅. Faltam 7.4 (cadastrar os 3 secrets no GitHub e ver o
+deploy automático rodar), 7.5 e 7.6 (rodar limpeza e atualização mensal manualmente uma vez cada).
+
+**Mudança no caminho crítico:** com o site público no ar, o que trava o lançamento deixa de ser
+infraestrutura e passa a ser as pendências de negócio — verificar o domínio no Resend (sem isso
+nenhum cliente novo consegue confirmar cadastro), `PIX_CHAVE` real (2.5), texto dos Termos (4.5). O
+`www` e os TXT do Resend agora podem ser criados no painel, já que a transição terminou.
+
+---
+
+*Última atualização: 2026-08-30 — história 7.3 concluída: **https://leadoor.com.br no ar com HTTPS
+válido**, `www` redirecionando pro apex, HTTP redirecionando pra HTTPS, e `trust proxy` confirmado em
+produção (o rate limit por IP enxerga o visitante real atrás do Caddy). Registrados dois achados: o
+`sudo caddy validate` cria o log como root e faz o reload seguinte falhar, e o desafio `tls-alpn-01`
+falhou na validação secundária da Let's Encrypt com o Caddy caindo sozinho pro `http-01` (seção 31).
+No dia anterior: 7.2 concluída com a aplicação sob pm2 e o banco da Receita transferido e validado
+(seção 30); DNS apontado e VPS conferida, com o achado do `app.listen` sem host que deixa a porta
+3000 protegida só pelo UFW — ainda não corrigido (seção 29); domínio comprado, VPS contratada e 7.1
+validada, com os achados do fail2ban e do `NOPASSWD` (seção 28). Antes: auditoria do dicionário de
+sinônimos CNAE com fix de word-boundary matching (seção 27) e o bug de nicho composto da homologação
+(seção 26); custos e go-live no `BACKLOG.md` (seção 25); bug crítico de `confirmar_compra` exposto ao
+`anon` corrigido em produção (seção 23); ver seções 13-31 pro histórico recente.*

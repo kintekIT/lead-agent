@@ -4,6 +4,15 @@
 # Caddy renova o certificado sozinho — não precisa cron nem certbot. Só
 # funciona depois que o DNS do domínio (registro A) apontar pro IP da VPS.
 
+# O www redireciona pro domínio principal, e isso NÃO é cosmético: o
+# APP_ORIGIN (CORS, história 4.1) é https://leadoor.com.br. Se alguém
+# navegasse por www.leadoor.com.br, a página abriria mas toda chamada à
+# API seria cross-origin e o navegador a bloquearia — o site pareceria
+# carregado e nenhum botão funcionaria. Uma origem canônica só evita isso.
+www.leadoor.com.br {
+	redir https://leadoor.com.br{uri} permanent
+}
+
 leadoor.com.br {
 	reverse_proxy localhost:3000
 
