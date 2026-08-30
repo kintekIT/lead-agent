@@ -535,7 +535,15 @@ if (!sentryAtivo()) {
 }
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+// Escuta só na interface interna por padrão. O Caddy (história 7.3) fala com
+// a aplicação de dentro da própria máquina, então não existe razão pra porta
+// 3000 ser alcançável de fora — e sem isso o firewall vira a ÚNICA barreira.
+// O risco não é só tráfego sem TLS: com `trust proxy` ligado (logo acima),
+// quem chegasse direto na 3000 poderia forjar o X-Forwarded-For e se passar
+// por qualquer IP, furando o rate limit das histórias 4.1/4.3.
+// HOST=0.0.0.0 no .env reabre, se algum dia for necessário (container etc).
+const HOST = process.env.HOST || '127.0.0.1';
+app.listen(PORT, HOST, () => {
   logger.info({ port: PORT }, `Interface web disponível em http://localhost:${PORT}`);
   if (!configurado) {
     logger.warn('SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY ausentes no .env — as rotas /api responderão 503. Veja supabase/README.md.');
