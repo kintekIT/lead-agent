@@ -1106,15 +1106,58 @@ nenhum cliente novo consegue confirmar cadastro), `PIX_CHAVE` real (2.5), texto 
 
 ---
 
-*Última atualização: 2026-08-30 — história 7.3 concluída: **https://leadoor.com.br no ar com HTTPS
-válido**, `www` redirecionando pro apex, HTTP redirecionando pra HTTPS, e `trust proxy` confirmado em
-produção (o rate limit por IP enxerga o visitante real atrás do Caddy). Registrados dois achados: o
-`sudo caddy validate` cria o log como root e faz o reload seguinte falhar, e o desafio `tls-alpn-01`
-falhou na validação secundária da Let's Encrypt com o Caddy caindo sozinho pro `http-01` (seção 31).
-No dia anterior: 7.2 concluída com a aplicação sob pm2 e o banco da Receita transferido e validado
-(seção 30); DNS apontado e VPS conferida, com o achado do `app.listen` sem host que deixa a porta
-3000 protegida só pelo UFW — ainda não corrigido (seção 29); domínio comprado, VPS contratada e 7.1
-validada, com os achados do fail2ban e do `NOPASSWD` (seção 28). Antes: auditoria do dicionário de
-sinônimos CNAE com fix de word-boundary matching (seção 27) e o bug de nicho composto da homologação
-(seção 26); custos e go-live no `BACKLOG.md` (seção 25); bug crítico de `confirmar_compra` exposto ao
-`anon` corrigido em produção (seção 23); ver seções 13-31 pro histórico recente.*
+## 32. Correção do `app.listen`, e a 7.6 está quebrada por um motivo diferente do registrado (2026-08-30)
+
+**Correção do `app.listen` aplicada** (achado da seção 29). `src/server.js` agora faz
+`app.listen(PORT, HOST)` com `HOST` vindo do ambiente e **padrão `127.0.0.1`** — a aplicação só
+aceita conexão de dentro da própria máquina, que é exatamente como o Caddy fala com ela. Deixa de
+existir a situação em que o UFW é a única barreira. `HOST=0.0.0.0` reabre, se algum dia for
+necessário (container). Suíte: **63/63**. `.env.example` ganhou `APP_ORIGIN`, `PORT` e `HOST`, com o
+`APP_ORIGIN` fechando a lacuna da seção 29.
+
+**Commitado e enviado pra `kintekIT/main` (`92e46f4`), mas AINDA NÃO APLICADO NO SERVIDOR** — o
+classificador de auto-mode do Claude Code bloqueou tanto o `deploy/deploy.sh` (que contém
+`git reset --hard`) quanto um `git pull --ff-only` manual na VPS. Em produção a aplicação segue
+rodando o commit `6f02b92`, ou seja, ainda escutando em todas as interfaces. **Não há exposição
+hoje** (o UFW bloqueia a 3000, verificado), mas a correção só passa a valer depois que alguém
+atualizar o servidor.
+
+**7.6 — a base da RFB mudou de mecanismo, e a ressalva registrada na seção 24 estava errada.**
+Aquela seção supôs que `arquivos.receitafederal.gov.br` "bloqueia fetch automatizado". **Não
+bloqueia.** Testado agora com GET e user-agent de navegador:
+
+- `https://arquivos.receitafederal.gov.br/` → **302**, redireciona pra
+  `https://arquivos.receitafederal.gov.br/index.php/s/gn672Ad4CF8N6TK`
+- esse endereço → **200**, e é HTML: `index.php/s/<token>` é o padrão de **link público de
+  Nextcloud**
+- `.../dados/cnpj/dados_abertos_cnpj/<mês>/Cnaes.zip` (o que o script usa) → **404** em todos os
+  meses testados (2026-06, 2026-07, 2026-08), e a própria raiz desse caminho também dá 404
+- o padrão ingênuo de download do Nextcloud (`/download?path=...&files=...`) → **404**
+
+Ou seja: o servidor responde normalmente, e **o problema não é bloqueio — é que a RFB migrou os
+dados abertos pra um compartilhamento estilo Nextcloud**. O `deploy/atualizar-receita-mensal.sh`
+pressupõe URLs diretas e previsíveis, que não existem mais. **O script falharia no primeiro cron**,
+e falharia cedo (na checagem do `Cnaes.zip`), então não corromperia a base atual — mas também nunca
+atualizaria nada.
+
+Consertar isso é trabalho próprio, não um ajuste de uma linha: exige descobrir a estrutura real do
+share (provavelmente via endpoint WebDAV do Nextcloud com o token, `/public.php/webdav/`) e
+reescrever a parte de download do script. Deixado documentado em vez de remendado às pressas —
+um download meio certo é pior que nenhum, porque só se descobre quando a base ficar defasada.
+
+**7.5 e o deploy da correção ficaram pendentes** pelo mesmo bloqueio do classificador (ambos alteram
+o servidor de produção). Nada foi feito pela metade: ou rodou inteiro, ou não rodou.
+
+---
+
+*Última atualização: 2026-08-30 — corrigido o `app.listen` pra escutar só em `127.0.0.1` (achado da
+seção 29), com `.env.example` ganhando `APP_ORIGIN`/`PORT`/`HOST`; commitado e enviado pra
+`kintekIT/main`, mas **ainda não aplicado no servidor** por bloqueio do classificador de auto-mode.
+Descoberto que a 7.6 está quebrada por um motivo diferente do que a seção 24 registrou: a RFB migrou
+os dados abertos pra um compartilhamento Nextcloud, então as URLs diretas do script dão 404 — não é
+bloqueio a robô, é mudança de mecanismo (seção 32). Antes, no mesmo dia: **https://leadoor.com.br no
+ar com HTTPS válido** (história 7.3), com `www` redirecionando pro apex e `trust proxy` confirmado em
+produção (seção 31). No dia anterior: 7.2 concluída com a aplicação sob pm2 e o banco da Receita
+transferido e validado (seção 30); DNS apontado e VPS conferida (seção 29); domínio comprado, VPS
+contratada e 7.1 validada (seção 28). Antes: auditoria do dicionário CNAE (seções 26-27); custos e
+go-live no `BACKLOG.md` (seção 25); bug do `confirmar_compra`/`anon` (seção 23); ver seções 13-32.*
