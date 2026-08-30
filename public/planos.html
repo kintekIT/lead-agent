@@ -59,6 +59,11 @@
     }
     .btn-comprar:hover { opacity:.9; }
     .btn-comprar:disabled { opacity:.4; cursor:not-allowed; }
+    /* Pix como opção secundária: o cartão credita na hora, o Pix depende de
+       um admin confirmar na fila (história 6.3) — a hierarquia visual reflete
+       isso em vez de tratar os dois como equivalentes. */
+    .btn-secundario { background:transparent; color:var(--text2); border:1px solid var(--border); margin-top:7px; }
+    .btn-secundario:hover { border-color:var(--blue); color:var(--blue); opacity:1; }
 
     .card {
       background:var(--card); border:1px solid var(--border); border-radius:12px;
@@ -103,7 +108,7 @@
     <nav class="header-actions" id="navMenu"></nav>
   </header>
 
-  <p class="lede">1 crédito = 1 lead entregue. Escolha um pacote, pague via Pix e o saldo é liberado assim que o pagamento é confirmado.</p>
+  <p class="lede">1 crédito = 1 lead entregue. No cartão, o saldo é liberado automaticamente assim que o pagamento é aprovado. No Pix, a liberação acontece após a confirmação do pagamento.</p>
 
   <div class="erro-inline" id="erroCompra">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -140,7 +145,8 @@
       <div class="pacote">
         <div class="creditos">${p.creditos}<small>créditos</small></div>
         <div class="preco">${fmtBRL(p.valorCentavos)}</div>
-        <button class="btn-comprar" onclick="comprar('${p.pacote}')">Comprar via Pix</button>
+        <button class="btn-comprar" onclick="comprar('${p.pacote}', 'mercadopago')">Pagar com cartão</button>
+        <button class="btn-comprar btn-secundario" onclick="comprar('${p.pacote}', 'pix_manual')">Pagar com Pix</button>
       </div>
     `).join('');
   }
@@ -154,17 +160,24 @@
     document.getElementById('erroCompra').classList.remove('show');
   }
 
-  async function comprar(pacote) {
+  async function comprar(pacote, metodo = 'pix_manual') {
     limparErroCompra();
     document.querySelectorAll('.btn-comprar').forEach(b => b.disabled = true);
     try {
       const res = await authFetch('/api/compras', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pacote }),
+        body: JSON.stringify({ pacote, metodo }),
       });
       const compra = await res.json();
       if (!res.ok) throw new Error(compra.erro || 'Erro ao criar a compra');
+
+      // Cartão: o pagamento acontece no ambiente do Mercado Pago, não aqui.
+      // Saímos da página; a volta é tratada por conferirRetornoDoCheckout().
+      if (metodo === 'mercadopago') {
+        window.location.href = compra.urlCheckout;
+        return;
+      }
 
       compraAtual = compra;
       document.getElementById('qrImg').src = compra.qrCodeDataUrl;
@@ -220,7 +233,48 @@
     } catch {}
 
     carregarPacotes();
+    conferirRetornoDoCheckout();
   })();
+
+  // Volta do checkout do Mercado Pago (história 2.7). O MP acrescenta seus
+  // próprios parâmetros na URL de retorno, entre eles o external_reference,
+  // que é o id da nossa compra.
+  //
+  // Importante: chegar aqui com status=approved NÃO significa que o crédito
+  // já entrou. Quem credita é o webhook, que é assíncrono e pode chegar
+  // depois do usuário. Por isso a tela não afirma "creditado" — ela mostra
+  // "processando" e faz o mesmo polling do Pix até o status virar 'pago'.
+  function conferirRetornoDoCheckout() {
+    const params = new URLSearchParams(window.location.search);
+    const resultado = params.get('compra');
+    if (!resultado) return;
+
+    const compraId = params.get('external_reference');
+    const card = document.getElementById('pagamentoCard');
+    const status = document.getElementById('statusPagamento');
+
+    // Limpa a query string pra um F5 não reprocessar o retorno.
+    window.history.replaceState({}, '', window.location.pathname);
+
+    if (resultado === 'falha') {
+      mostrarErroCompra('O pagamento não foi aprovado. Nenhum valor foi cobrado — você pode tentar de novo.');
+      return;
+    }
+
+    // Esconde a área de Pix (QR e botão de copiar não fazem sentido no cartão)
+    // e reaproveita só a faixa de status.
+    document.querySelector('.qr-wrap').style.display = 'none';
+    document.getElementById('copiaCola').style.display = 'none';
+    document.getElementById('btnCopiarPix').style.display = 'none';
+    card.querySelector('.card-label').textContent = 'Pagamento com cartão';
+    status.textContent = resultado === 'sucesso'
+      ? 'Pagamento recebido — liberando seus créditos…'
+      : 'Pagamento em processamento pela operadora. Você será creditado assim que for aprovado.';
+    status.className = 'status-aguardando';
+    card.classList.add('show');
+
+    if (compraId) iniciarPolling(compraId);
+  }
 </script>
 </body>
 </html>

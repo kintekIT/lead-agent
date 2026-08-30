@@ -48,6 +48,10 @@ const adminPapelBodySchema = z.object({
 // Compra de créditos via Pix (história 2.5)
 const compraBodySchema = z.object({
   pacote: z.enum(['200', '500', '1000'], { message: 'Pacote inválido.' }),
+  // Default mantém compatibilidade com o frontend da 2.5, que só manda
+  // `pacote` — sem isso, a tela de planos existente quebraria ao subir a 2.7.
+  metodo: z.enum(['pix_manual', 'mercadopago'], { message: 'Método de pagamento inválido.' })
+    .default('pix_manual'),
 });
 
 const compraIdParamSchema = z.object({

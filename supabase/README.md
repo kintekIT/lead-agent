@@ -25,6 +25,8 @@ arquivo abaixo **nesta ordem** (cada uma depende da anterior) e execute (Run):
 4. `migrations/20260722150000_confirmar_compra_pix.sql` — confirmação de compra Pix (história 2.5)
 5. `migrations/20260723160000_auditoria_eventos.sql` — tabela `events`, auditoria de ações admin (história 5.4)
 6. `migrations/20260723170000_metricas_negocio.sql` — `metricas_negocio()`, agregados pro painel admin (história 6.4)
+7. `migrations/20260725180000_revoga_execute_anon_rpcs_sensiveis.sql` — **correção de segurança**: revoga `execute` do role `anon` nas RPCs sensíveis (ver `CONTEXTO.md` seção 23 — `confirmar_compra` estava chamável sem login)
+8. `migrations/20260830120000_pagamento_cartao_mercadopago.sql` — colunas `metodo`/`gateway_pagamento_id` em `purchases` + `confirmar_compra_gateway()` idempotente pro webhook (história 2.7)
 
 Opção B — **CLI** (mantém o histórico de migrations no Supabase):
 ```bash

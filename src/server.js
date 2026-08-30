@@ -11,7 +11,7 @@ const { executarReceita } = require('./executor-receita');
 const { buscarLeadsReceita } = require('./tools/receita');
 const { autenticar, exigirAdmin, saldoCreditos } = require('./auth/middleware');
 const { supabaseAdmin, configurado } = require('./auth/supabase');
-const { helmetMiddleware, corsMiddleware, limiteApi, limitePorUsuario } = require('./middleware/seguranca');
+const { helmetMiddleware, corsMiddleware, limiteApi, limitePorUsuario, APP_ORIGIN } = require('./middleware/seguranca');
 const { validar } = require('./middleware/validar');
 const { logRequisicao } = require('./middleware/log-requisicao');
 const { logger } = require('./utils/logger');
@@ -24,6 +24,7 @@ const {
 const { tamanhoPool } = require('./config/pool-dedup');
 const { PACOTES } = require('./config/pacotes-creditos');
 const { gerarPayloadPix } = require('./utils/pix');
+const mercadopago = require('./pagamentos/mercadopago');
 const QRCode = require('qrcode');
 const { registrarEvento } = require('./auditoria');
 
@@ -80,6 +81,82 @@ app.get('/health', (_req, res) => {
 // supabase-js servido localmente (sem depender de CDN)
 app.get('/vendor/supabase.js', (_req, res) => {
   res.sendFile(require.resolve('@supabase/supabase-js/dist/umd/supabase.js'));
+});
+
+/* ── POST /webhooks/mercadopago ── confirmação automática de pagamento (2.7)
+ *
+ * Fica FORA de /api de propósito: `app.use('/api', autenticar)` exige JWT de
+ * usuário, e o Mercado Pago não tem como ter um. A autenticação aqui é a
+ * assinatura HMAC que o próprio MP envia — sem ela, esta seria uma rota
+ * pública que credita saldo.
+ *
+ * Regra que rege as respostas: 200 significa "não me mande de novo", 500
+ * significa "tente mais tarde". O MP reenvia até receber 200, então responder
+ * 200 em caso de falha transitória perderia o pagamento em silêncio, e
+ * responder 500 em caso já decidido geraria reenvio eterno.
+ */
+app.post('/webhooks/mercadopago', async (req, res) => {
+  // O MP manda o id ora na query, ora no corpo, dependendo do tipo de
+  // notificação e da versão do painel onde ela foi configurada.
+  const dataId = req.query['data.id'] || req.body?.data?.id;
+
+  if (!mercadopago.validarAssinatura({
+    dataId,
+    xSignature: req.get('x-signature'),
+    xRequestId: req.get('x-request-id'),
+  })) {
+    logger.warn({ dataId, ip: req.ip }, 'webhook do Mercado Pago com assinatura inválida — ignorado');
+    return res.status(401).json({ erro: 'assinatura inválida' });
+  }
+
+  // O MP notifica vários tipos de evento; só pagamento interessa aqui.
+  const tipo = req.query.type || req.body?.type;
+  if (tipo !== 'payment') return res.sendStatus(200);
+
+  try {
+    // Consulta a API em vez de confiar no corpo: quem descobrir esta URL pode
+    // postar o que quiser nela, e a assinatura só prova que a notificação veio
+    // do MP — não prova o que ela afirma sobre valor ou status.
+    const pagamento = await mercadopago.consultarPagamento(dataId);
+
+    if (pagamento.status !== 'approved') {
+      // Pendente/recusado é notificação legítima de um estado que não credita.
+      logger.info({ pagamentoId: pagamento.id, status: pagamento.status }, 'pagamento do Mercado Pago ainda não aprovado');
+      return res.sendStatus(200);
+    }
+    if (!pagamento.compraId) {
+      logger.error({ pagamentoId: pagamento.id }, 'pagamento aprovado sem external_reference — impossível saber qual compra creditar');
+      return res.sendStatus(200);
+    }
+
+    const { data: resultado, error } = await supabaseAdmin.rpc('confirmar_compra_gateway', {
+      p_purchase_id:          pagamento.compraId,
+      p_gateway_pagamento_id: pagamento.id,
+      p_valor_centavos:       pagamento.valorCentavos,
+    });
+    if (error) throw error;
+
+    logger.info(
+      { compraId: pagamento.compraId, pagamentoId: pagamento.id, resultado },
+      'webhook do Mercado Pago processado',
+    );
+    if (resultado === 'confirmada') {
+      registrarEvento({
+        atorId: null, // não houve ator humano — quem confirmou foi o gateway
+        acao: 'confirmar_compra_cartao',
+        alvoTipo: 'purchase',
+        alvoId: pagamento.compraId,
+        metadados: { gateway: 'mercadopago', pagamentoId: pagamento.id, valorCentavos: pagamento.valorCentavos },
+      });
+    }
+    res.sendStatus(200);
+  } catch (err) {
+    // Inclui o caso de valor divergente, que a RPC recusa com exceção. É
+    // permanente, mas o 500 é deliberado: o reenvio do MP mantém o erro
+    // visível no log em vez de deixá-lo passar despercebido uma única vez.
+    logger.error({ err, dataId }, 'falha ao processar webhook do Mercado Pago');
+    res.sendStatus(500);
+  }
 });
 
 /* ── Daqui para baixo, toda rota /api/* exige rate limit (história 4.1) e JWT válido (história 0.3) ── */
@@ -283,21 +360,60 @@ app.get('/api/pacotes', (_req, res) => {
   res.json(Object.entries(PACOTES).map(([pacote, info]) => ({ pacote, ...info })));
 });
 
-/* ── POST /api/compras ── cria uma compra pendente e devolve o Pix pra pagar (história 2.5) */
+/* ── POST /api/compras ── cria uma compra pendente (histórias 2.5 e 2.7)
+   `metodo` decide o caminho: 'pix_manual' devolve o QR/copia-e-cola pro admin
+   confirmar depois (6.3); 'mercadopago' devolve a URL do checkout de cartão,
+   que se confirma sozinha pelo webhook. O default do schema é 'pix_manual',
+   então o frontend antigo continua funcionando sem mudança. */
 app.post('/api/compras', validar(compraBodySchema, 'body'), async (req, res) => {
-  if (!PIX_CHAVE) {
+  const { pacote, metodo } = req.body;
+  const info = PACOTES[pacote];
+
+  // Checagem de configuração ANTES de criar a compra: sem isso, um servidor
+  // mal configurado encheria a tabela de compras pendentes que nunca poderiam
+  // ser pagas, e que ainda apareceriam na fila do admin até expirar em 48h.
+  if (metodo === 'pix_manual' && !PIX_CHAVE) {
     return res.status(503).json({ erro: 'Pix ainda não configurado no servidor — defina PIX_CHAVE no .env.' });
   }
-
-  const { pacote } = req.body;
-  const info = PACOTES[pacote];
+  if (metodo === 'mercadopago' && !mercadopago.configurado()) {
+    return res.status(503).json({ erro: 'Pagamento com cartão ainda não configurado no servidor — defina MERCADOPAGO_ACCESS_TOKEN no .env.' });
+  }
 
   const { data: compra, error } = await supabaseAdmin
     .from('purchases')
-    .insert({ user_id: req.usuario.id, pacote, creditos: info.creditos, valor_centavos: info.valorCentavos })
+    .insert({ user_id: req.usuario.id, pacote, creditos: info.creditos, valor_centavos: info.valorCentavos, metodo })
     .select('id, criado_em')
     .single();
   if (error) return res.status(500).json({ erro: `Falha ao criar a compra: ${error.message}` });
+
+  const comum = {
+    id: compra.id,
+    pacote,
+    creditos: info.creditos,
+    valorCentavos: info.valorCentavos,
+    criadoEm: compra.criado_em,
+    status: 'pendente',
+    metodo,
+  };
+
+  if (metodo === 'mercadopago') {
+    try {
+      const { urlCheckout } = await mercadopago.criarPreferencia({
+        compraId: compra.id,
+        creditos: info.creditos,
+        valorCentavos: info.valorCentavos,
+        emailComprador: req.usuario.email,
+        urlBase: APP_ORIGIN,
+      });
+      return res.json({ ...comum, urlCheckout });
+    } catch (err) {
+      // Cancela a compra recém-criada: sem isso ela ficaria pendente por 48h
+      // na fila do admin, esperando um pagamento que nunca foi nem oferecido.
+      logger.error({ err, compraId: compra.id }, 'falha ao criar preferência no Mercado Pago');
+      await supabaseAdmin.from('purchases').update({ status: 'cancelado' }).eq('id', compra.id);
+      return res.status(502).json({ erro: 'Não foi possível iniciar o pagamento com cartão. Tente novamente em instantes.' });
+    }
+  }
 
   const payload = gerarPayloadPix({
     chave: PIX_CHAVE,
@@ -308,16 +424,7 @@ app.post('/api/compras', validar(compraBodySchema, 'body'), async (req, res) => 
   });
   const qrCodeDataUrl = await QRCode.toDataURL(payload);
 
-  res.json({
-    id: compra.id,
-    pacote,
-    creditos: info.creditos,
-    valorCentavos: info.valorCentavos,
-    criadoEm: compra.criado_em,
-    status: 'pendente',
-    pixCopiaECola: payload,
-    qrCodeDataUrl,
-  });
+  res.json({ ...comum, pixCopiaECola: payload, qrCodeDataUrl });
 });
 
 /* ── GET /api/compras ── minhas compras (história 2.5) */
