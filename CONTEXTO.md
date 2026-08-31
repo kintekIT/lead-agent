@@ -1220,13 +1220,106 @@ degradação graciosa do Pix e do Sentry. É seguro estar na `main` sem estar co
 
 ---
 
-*Última atualização: 2026-08-30 — história 2.7 (pagamento com cartão via Mercado Pago) implementada e
-mergeada como 🟡: falta aplicar a migration, cadastrar as credenciais e testar ponta a ponta. Decidido
-que o produto terá pacote avulso **e** assinatura recorrente; a assinatura virou a 2.8, ainda não
-iniciada, e muda o modelo de dados (seção 33). Antes, no mesmo dia: `app.listen` restrito a
-`127.0.0.1`, e descoberto que a 7.6 está quebrada porque a RFB migrou os dados abertos pra um
-compartilhamento Nextcloud (seção 32); **https://leadoor.com.br no ar com HTTPS válido** (história
-7.3, seção 31); 7.2 concluída com a aplicação sob pm2 e o banco da Receita validado (seção 30); DNS
-apontado e VPS conferida (seção 29); domínio comprado, VPS contratada e 7.1 validada (seção 28).
-Antes: auditoria do dicionário CNAE (seções 26-27); custos e go-live no `BACKLOG.md` (seção 25); bug
-do `confirmar_compra`/`anon` (seção 23); ver seções 13-33.*
+## 34. E-mail transacional funcionando: domínio verificado no Resend (2026-08-30)
+
+**Fecha a pendência que travava o lançamento inteiro.** Até hoje, nenhum usuário novo conseguia
+concluir o cadastro — o e-mail de confirmação não chegava. Agora chega.
+
+**O estado real era pior do que o documentado.** A configuração SMTP no Supabase estava assim:
+
+| Campo | Valor encontrado | Correto pro Resend |
+|---|---|---|
+| Host | `smtp.resend.com` | ✅ |
+| Username | **`kintekit@gmail.com`** | ❌ tem que ser o literal `resend` |
+| Password | (uma chave) | a API key do Resend |
+| Sender email | **vazio** | um endereço `@leadoor.com.br` |
+| Sender name | **vazio** | o nome que aparece na caixa de entrada |
+
+Ou seja, apontava pro servidor do Resend com credencial no formato do Gmail, e sem remetente
+definido. A anotação da seção 14 ("o fix do Resend/SMTP funcionou, cadastro de terceiro não falha
+mais") não corresponde ao que estava configurado hoje — em algum momento entre julho e agora, isso
+mudou ou nunca esteve certo.
+
+**Dois sintomas diferentes, duas causas diferentes** — e o primeiro quase mandou o diagnóstico pro
+caminho errado:
+
+1. Cadastro com `magrotto23@gmail.com` → **silêncio, sem erro**. Causa: essa conta já existia desde
+   julho. O Supabase, ao receber cadastro de e-mail já cadastrado, **responde 200 e não envia nada**
+   (`user_repeated_signup` nos logs). É anti-enumeração deliberada: dizer "esse e-mail já tem conta"
+   permitiria descobrir quem é cliente testando endereços. **Teste de cadastro com e-mail que já
+   existe não testa nada** — use o truque do `+alias` do Gmail.
+2. Cadastro com `cecieventsbr@gmail.com` (conta nova) → **erro 500**. Aí sim, a causa real.
+
+**O diagnóstico veio dos logs do Supabase, não de tentativa e erro.** Via
+`mcp__supabase__query_logs` com `source = 'auth_logs'`, o erro literal:
+
+```
+550 "The leadoor.com.br domain is not verified.
+     Please, add and verify your domain on https://resend.com/domains"
+```
+
+Vale registrar a técnica: **`auth_logs` do Supabase dá o erro exato de SMTP**, incluindo a resposta
+crua do servidor de e-mail. Sem isso, teria sido chute entre umas cinco hipóteses.
+
+**A causa raiz era banal:** o domínio tinha sido *adicionado* ao Resend, mas a verificação estava
+como **"Not Started"** — nunca chegou a ser disparada. Adicionar domínio e verificar domínio são
+dois passos, e o painel não deixa isso óbvio.
+
+**Registros DNS criados** (no Registro.br, modo avançado):
+
+| Tipo | Nome | Valor |
+|---|---|---|
+| TXT | `resend._domainkey.leadoor.com.br` | chave DKIM (218 caracteres) |
+| CNAME | `rsend.leadoor.com.br` | `rsend-sae1.forge.rmta.net` |
+| CNAME | `send.leadoor.com.br` | `send.forge.rmta.net` |
+
+**O Resend novo não pede TXT de SPF nem MX** — usa dois CNAMEs que delegam pra infraestrutura dele
+(`forge.rmta.net`). Isso tem uma consequência boa: o `v=spf1 -all` automático do Registro.br no
+domínio raiz **não precisou ser mexido**, porque a verificação de SPF acontece contra
+`send.leadoor.com.br`, não contra o apex. O `-all` do raiz continua fazendo o trabalho dele, que é
+impedir falsificação em nome do domínio.
+
+**Armadilhas do painel do Registro.br** (modo avançado, "Configurar zona DNS"):
+- nome vai **por extenso** (`resend._domainkey.leadoor.com.br`), não no formato curto que o Resend
+  mostra e que a maioria dos painéis aceita;
+- **não aceita `@` nem `*`**;
+- destino de CNAME **sem ponto final** — e, verificado depois, o Registro.br **não** concatena o
+  domínio no fim (a armadilha clássica não se aplica aqui);
+- os registros automáticos (`v=spf1 -all`, `_dmarc` com `p=reject`, MX nulo) **não aparecem no
+  editor** e não são editáveis por ele.
+
+**A verificação levou 36 minutos, não as "até 4 horas" anunciadas.** E durante a espera apareceu um
+comportamento que confundiu: Google, Cloudflare e Quad9 já resolviam os três registros enquanto os
+autoritativos `a.auto.dns.br`/`b.auto.dns.br` consultados daqui respondiam "não existe". Explicação
+provável: **anycast** — o mesmo endereço IP é atendido por várias máquinas, e cada consultante cai
+numa. Já tinha acontecido igual com o registro `A` (seção 29). **Não é motivo pra mexer nos
+registros**; é motivo pra esperar.
+
+**Também ajustado:** `Authentication → URL Configuration` do Supabase, com Site URL trocado de
+`localhost` pra `https://leadoor.com.br`. Sem isso, o link dentro do e-mail de confirmação apontaria
+pra máquina do desenvolvedor — o e-mail chegaria e o link não funcionaria pro cliente.
+
+**Sobre o rastreamento de cliques:** a opção veio ligada e bloqueada na tela de criação do domínio.
+Como não dava pra desligar, foi configurado um **subdomínio de rastreamento próprio** (`links`), pra
+que os links reescritos fiquem em `links.leadoor.com.br` em vez de um domínio compartilhado do
+Resend. Rastreamento em e-mail transacional é indesejável (link de confirmação apontando pra domínio
+de terceiro tem cara de phishing e prejudica a entrega); trazer pro domínio próprio resolve a maior
+parte do problema.
+
+**Confirmado funcionando:** e-mail de confirmação chegando em conta nova.
+
+---
+
+*Última atualização: 2026-08-30 — **e-mail transacional funcionando**: domínio verificado no Resend,
+SMTP corrigido (username era `kintekit@gmail.com`, tem que ser `resend`; remetente estava vazio) e
+Site URL apontando pro domínio real. Fecha a pendência que impedia qualquer cliente novo de concluir
+cadastro (seção 34). No mesmo dia: história 2.7 (pagamento com cartão via Mercado Pago) implementada
+e mergeada como 🟡 — falta aplicar a migration, cadastrar credenciais e testar ponta a ponta; a
+assinatura recorrente virou a 2.8, ainda não iniciada (seção 33); `app.listen` restrito a
+`127.0.0.1` e a 7.6 descoberta quebrada porque a RFB migrou pra um compartilhamento Nextcloud (seção
+32); **https://leadoor.com.br no ar com HTTPS válido** (7.3, seção 31); 7.2 concluída com a aplicação
+sob pm2 e o banco da Receita validado (seção 30); DNS apontado e VPS conferida (seção 29); domínio
+comprado, VPS contratada e 7.1 validada (seção 28). **Atenção: o servidor de produção ainda roda o
+commit `6f02b92`** — a correção do `app.listen` e a história 2.7 estão na `main` mas não foram
+aplicadas lá. Antes: auditoria do dicionário CNAE (seções 26-27); custos e go-live no `BACKLOG.md`
+(seção 25); bug do `confirmar_compra`/`anon` (seção 23); ver seções 13-34.*

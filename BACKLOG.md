@@ -100,8 +100,10 @@ conveniente).
 
 ## Pendências transversais (não são história, mas bloqueiam produção)
 
-- **Domínio comprado (`leadoor.com.br`, 2026-08-12) e VPS contratada (Hostinger KVM 2, Brasil, 2026-08-25)** — `deploy/Caddyfile` e `deploy/README.md` já atualizados com o domínio real; VPS hardenizada (história 7.1 ✅). **DNS apontado e propagado; site no ar em https://leadoor.com.br com HTTPS válido (2026-08-30, história 7.3 ✅)**. O `www` já existia no DNS e agora redireciona pro apex. Ainda falta: (1) verificar o domínio no Resend com SPF/DKIM no DNS, que é o que destrava e-mail pra qualquer usuário que não seja o dono da conta; (2) `APP_ORIGIN` de produção (CORS, história 4.1); (3) HTTPS automático do Caddy (7.3).
-- **Resend sem domínio verificado**: só entrega e-mail pro dono da própria conta (`kintekit@gmail.com`). Cadastro de qualquer outro usuário falha com 500 até resolver (verificar domínio, ou desativar SMTP customizado temporariamente, ou desligar "Confirm email" em dev). Achado em 2026-07-23.
+- **🔴 O servidor de produção está desatualizado** — roda o commit `6f02b92` (2026-08-17), enquanto a `main` já está bem à frente. Não foram aplicados lá: a correção do `app.listen` (porta 3000 hoje escuta em todas as interfaces, protegida só pelo UFW — ver `CONTEXTO.md` seção 29/32) e toda a história 2.7 (pagamento com cartão). Atualizar com `cd ~/lead-agent && ./deploy/deploy.sh`. **O `.env` de produção também não tem as variáveis novas** (`MERCADOPAGO_*`).
+
+- **Domínio comprado (`leadoor.com.br`, 2026-08-12) e VPS contratada (Hostinger KVM 2, Brasil, 2026-08-25)** — `deploy/Caddyfile` e `deploy/README.md` já atualizados com o domínio real; VPS hardenizada (história 7.1 ✅). **Tudo que o domínio destravava está feito (2026-08-30)**: DNS apontado e propagado, site no ar em https://leadoor.com.br com HTTPS válido (7.3 ✅), `APP_ORIGIN` de produção configurado (CORS, 4.1 ✅) e domínio verificado no Resend com DKIM (✅, ver abaixo). O `www` já existia no DNS e redireciona pro apex.
+- ✅ **~~Resend sem domínio verificado~~ — RESOLVIDO em 2026-08-30.** `leadoor.com.br` verificado no Resend (DKIM + 2 CNAMEs no Registro.br), SMTP do Supabase corrigido (o `Username` estava como `kintekit@gmail.com`, tem que ser o literal `resend`; os campos de remetente estavam vazios) e Site URL apontando pro domínio real. **Cadastro de usuário novo recebe o e-mail de confirmação** — testado. Ver `CONTEXTO.md` seção 34.
 - **🟠 DECISÃO EM ABERTO: mecanismo de pagamento** (levantado por Otávio em 2026-08-30; conversa pendente com Giovanni, Rogério e Gustavo) — o fluxo construído (histórias 2.5 e 6.3) é **Pix com confirmação manual**: QR/copia-e-cola, compra `pendente`, expiração em 48h e um admin confirmando na fila do painel. Há indício de que o time decidiu **cartão**. Três desfechos possíveis:
   - **Pix + cartão convivendo** (comum no mercado brasileiro) — 2.5 e 6.3 seguem valendo como estão, o cartão entra como história nova ao lado;
   - **só cartão** — 2.5 e 6.3 saem do projeto;
@@ -132,8 +134,7 @@ referência R$5,08/US$ (26/07/2026) — os itens em dólar variam com a cotaçã
 Cada item diz **o que confirmar** antes de considerar fechado.
 
 1. ✅ **Comprar o domínio** (`leadoor.com.br`, 2026-08-12) — destrava Resend, `APP_ORIGIN` e HTTPS de uma vez só.
-2. **Verificar o domínio no Resend** (registros SPF/DKIM no DNS) → confirmar: cadastro de um
-   e-mail que **não** seja o `kintekit@gmail.com` recebe a confirmação, e não cai em spam.
+2. ✅ **Verificar o domínio no Resend** — feito em 2026-08-30, com cadastro de e-mail novo recebendo a confirmação (seção 34 do `CONTEXTO.md`).
 3. **`PIX_CHAVE` / `PIX_NOME_RECEBEDOR` / `PIX_CIDADE` reais no `.env`** → fecha a 2.5. Segue valendo a menos que o time decida remover o Pix por completo (ver decisão em aberto nas pendências transversais).
 4. **Ver uma compra Pix de verdade passar pela fila do admin** → fecha a 6.3, e com ela o Épico 6
    inteiro.
