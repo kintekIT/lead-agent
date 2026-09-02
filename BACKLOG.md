@@ -130,32 +130,55 @@ conveniente).
 **Mínimo pra lançar: ~R$50/mês.** Com Supabase Pro + Resend pago: ~R$280/mês. Câmbio de
 referência R$5,08/US$ (26/07/2026) — os itens em dólar variam com a cotação.
 
-## Go-live — ordem sugerida
+## Go-live — o que falta (revisado em 2026-09-02)
 
-Cada item diz **o que confirmar** antes de considerar fechado.
+**Estado: o produto funciona ponta a ponta em produção.** O caminho completo do cliente foi
+percorrido em 2026-09-02 — cadastro em `app.leadoor.com.br`, e-mail de confirmação chegando com o
+link certo, conta ativada com os 20 créditos de trial e busca de leads executada com sucesso (ver
+`CONTEXTO.md` seção 36). O que resta não é fazer o sistema funcionar; é poder cobrar por ele e
+operá-lo com segurança.
 
-1. ✅ **Comprar o domínio** (`leadoor.com.br`, 2026-08-12) — destrava Resend, `APP_ORIGIN` e HTTPS de uma vez só.
-2. ✅ **Verificar o domínio no Resend** — feito em 2026-08-30, com cadastro de e-mail novo recebendo a confirmação (seção 34 do `CONTEXTO.md`).
-3. **`PIX_CHAVE` / `PIX_NOME_RECEBEDOR` / `PIX_CIDADE` reais no `.env`** → fecha a 2.5. Segue valendo a menos que o time decida remover o Pix por completo (ver decisão em aberto nas pendências transversais).
-4. **Ver uma compra Pix de verdade passar pela fila do admin** → fecha a 6.3, e com ela o Épico 6
-   inteiro.
-5. **Escrever o texto real dos Termos de Uso / Política de Privacidade** → fecha a 4.5.
-6. **Contratar a VPS e seguir `deploy/README.md` na ordem** — é o que vira as 6 histórias do
-   Épico 7 de 🟡 pra ✅:
-   - **7.1** — rodar `setup-vps.sh` no servidor de verdade. **Antes de fechar a sessão root**,
-     abrir outro terminal e confirmar que `ssh deploy@IP` funciona — se a chave não foi copiada
-     certo, você fica trancado pra fora.
-   - **7.2** — primeiro deploy manual seguindo o guia (clone → `.env` → `rsync` do `receita.db` →
-     `pm2 start`). É o teste real de que `deploy.sh` e `ecosystem.config.js` estão certos.
-   - **7.3** — apontar o domínio, confirmar HTTPS de verdade e **testar que o rate limit por IP
-     não quebrou**: o `app.set('trust proxy', 1)` é a parte mais fácil de sair errado atrás do
-     Caddy (sem ele, todo mundo aparece com o IP do proxy e o limite vira global).
-   - **7.4** — cadastrar os 3 secrets no GitHub (`DEPLOY_HOST` / `DEPLOY_USER` /
-     `DEPLOY_SSH_KEY`) e ver o primeiro deploy automático rodar sozinho depois de um push na
-     `main`.
-   - **7.5 / 7.6** — rodar a limpeza e a atualização mensal **manualmente uma vez cada** antes de
-     confiar no cron. O 7.6 principalmente: a URL da RFB não deu pra confirmar ao vivo (o site
-     bloqueia fetch automatizado), então o dry-run manual é obrigatório.
-7. **Sentry + UptimeRobot** (5.3) — só faz sentido depois que existir URL pública: criar conta
-   free no Sentry e colar o `SENTRY_DSN` no `.env`; cadastrar `https://<dominio>/health` no
-   UptimeRobot com alerta por e-mail/Telegram.
+### ✅ Concluído
+
+1. **Domínio** `leadoor.com.br` (12/08) e **VPS** Hostinger no Brasil (25/08).
+2. **Infraestrutura no ar** — histórias 7.1, 7.2 e 7.3: servidor hardenizado, aplicação sob pm2,
+   HTTPS válido, `trust proxy` confirmado. A aplicação atende em **https://app.leadoor.com.br**; o
+   domínio raiz é a landing page.
+3. **E-mail transacional** — domínio verificado no Resend com DKIM (30/08).
+4. **Fluxo do cliente validado de ponta a ponta** (02/09).
+
+### 🔴 Bloqueia vender
+
+5. **Definir o preço dos pacotes** — `src/config/pacotes-creditos.js` está com R$99/199/349, que são
+   exemplos de desenvolvimento. **É o único item que impede literalmente cobrar.** Decisão dos sócios.
+6. **Ativar o pagamento** — depende da decisão Pix vs. cartão (ver pendências transversais):
+   - **cartão (2.7)**: aplicar `supabase/migrations/20260830120000_pagamento_cartao_mercadopago.sql`
+     no SQL Editor, cadastrar `MERCADOPAGO_ACCESS_TOKEN`/`MERCADOPAGO_WEBHOOK_SECRET` no `.env` de
+     produção, apontar o webhook no painel do MP pra `https://app.leadoor.com.br/webhooks/mercadopago`
+     e fazer uma compra de teste ponta a ponta — incluindo conferir que uma segunda notificação do
+     mesmo pagamento **não** credita de novo;
+   - **Pix (2.5/6.3)**: `PIX_CHAVE`/`PIX_NOME_RECEBEDOR`/`PIX_CIDADE` reais no `.env` e ver uma
+     compra passar pela fila do admin.
+7. **Escrever os Termos de Uso e a Política de Privacidade** — o aceite já é registrado, o texto é
+   rascunho. Otávio assumiu. Vale revisão jurídica pela LGPD, já que o produto trata dados de empresas.
+
+### 🟠 Operar com segurança
+
+8. **Ligar o deploy automático (7.4)** — cadastrar `DEPLOY_HOST`/`DEPLOY_USER`/`DEPLOY_SSH_KEY` no
+   GitHub, com chave SSH dedicada ao CI. Hoje todo deploy é manual, e o servidor já ficou defasado
+   duas vezes por isso.
+9. **Sentry + UptimeRobot (5.3)** — contas gratuitas; colar o `SENTRY_DSN` no `.env` e monitorar
+   `https://app.leadoor.com.br/health`. Sem isso, queda de madrugada só é descoberta pelo cliente.
+10. **Backup do Postgres** — o plano Free do Supabase **não faz backup automático**. Hoje depende de
+    `supabase db dump` manual. O Pro (US$25/mês) resolve e ainda libera a proteção contra senhas
+    vazadas.
+11. **Agendar a limpeza diária (7.5)** — o script existe, nunca foi posto no cron.
+
+### ⬜ Depois do lançamento
+
+12. **Consertar a atualização mensal da base (7.6)** — quebrada: a RFB migrou os dados abertos pra um
+    compartilhamento Nextcloud e as URLs diretas dão 404. Não impede lançar; a base atual serve
+    normalmente, só vai envelhecendo.
+13. **Assinatura recorrente (2.8)** — decidida, não iniciada. Muda o modelo de dados.
+14. **Antifraude do trial (4.3)** — nada impede criar várias contas pra reusar os 20 créditos
+    gratuitos. O que dava pra fazer em código já existe; o resto é configuração e decisão de rigor.

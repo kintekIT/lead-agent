@@ -1387,14 +1387,83 @@ ou, pior, apaga a configuração de e-mail.
 
 ---
 
-*Última atualização: 2026-09-01 — **a aplicação migrou para https://app.leadoor.com.br** depois que
-um sócio repontou o domínio raiz para uma landing page; arranjo final é marketing na raiz e produto
-no subdomínio. Servidor atualizado de 17/08 para o commit atual (1.0.8), fechando a defasagem: entrou
-a correção do `app.listen` e a história 2.7. Primeiro deploy manual de verdade do projeto, que expôs
-os scripts sem permissão de execução no git e o fato de o `deploy.sh` não cobrir Caddy nem `.env`
-(seção 35). Antes: e-mail transacional funcionando com o domínio verificado no Resend (seção 34);
-história 2.7 (cartão via Mercado Pago) implementada como 🟡, faltando migration, credenciais e teste
-ponta a ponta (seção 33); 7.6 descoberta quebrada pela migração da RFB para Nextcloud (seção 32);
-HTTPS no ar (7.3, seção 31); 7.2 concluída (seção 30); DNS e VPS (seções 28-29). Antes: auditoria do
-dicionário CNAE (seções 26-27); custos e go-live no `BACKLOG.md` (seção 25); bug do
-`confirmar_compra`/`anon` (seção 23); ver seções 13-35.*
+## 36. Fluxo completo validado em produção — o caminho do cliente funciona ponta a ponta (2026-09-02)
+
+**Marco do projeto.** Pela primeira vez o percurso inteiro de um cliente foi feito em produção, do
+zero até o resultado:
+
+```
+cadastro em app.leadoor.com.br
+   → e-mail de confirmação chega
+   → link leva pro app (não pra landing page)
+   → conta ativa com os 20 créditos de trial
+   → busca de leads executada com sucesso
+```
+
+Isso valida de uma vez o Épico 1 (contas), a 2.1 (trial), o motor da Receita Federal e toda a
+infraestrutura do Épico 7 — não mais em teste isolado, e sim no caminho real.
+
+**Dois sustos que não eram problema, e um problema real escondido dentro deles.**
+
+**1. "Erro ao consultar prévia: Dados inválidos" — parecia regressão do deploy, não era.** O campo
+Região estava preenchido com `2`, e a validação (`previaBodySchema`) exige no mínimo 2 caracteres.
+Entrada inválida, comportamento correto.
+
+**Mas o problema de verdade estava na mensagem.** O middleware da história 4.2 responde:
+
+```json
+{ "erro": "Dados inválidos.", "detalhes": [{ "campo": "regiao", "mensagem": "Região deve ter ao menos 2 caracteres." }] }
+```
+
+O servidor **já dizia exatamente o que estava errado** — e o frontend lia só o campo genérico,
+descartando `detalhes`. O usuário via "Dados inválidos" e não tinha como agir.
+
+Corrigido com `mensagemErro()` em `public/js/auth.js`, aplicado nos cinco pontos que repetiam o
+padrão `x.erro || 'mensagem genérica'` (index, planos e duas telas do admin). **Lição que vale além
+deste caso:** a história 8.4 tratou de "erros amigáveis" trocando `alert()` por mensagem inline —
+cuidou da *aparência* do erro e não do *conteúdo*. A tela ficou bonita dizendo nada. Vale reler
+outras mensagens com esse olhar.
+
+**2. "O Resend está redirecionando pra landing page" — também não era o Resend.** O link do e-mail
+não vem do Supabase: é montado pelo próprio frontend em `public/login.html`, com
+`emailRedirectTo: ${location.origin}/login.html`. Ou seja, **o link aponta pro endereço onde a
+página estava aberta no momento do cadastro**. Confirmado por busca que não existe nenhum
+`leadoor.com.br` fixo no código.
+
+Consequência prática pra depuração: **e-mail é uma foto do momento do envio**. Um e-mail gerado
+antes de uma mudança de configuração continua com o valor antigo pra sempre — reabrir a caixa de
+entrada nunca vai mostrar o link corrigido. Sempre gerar um e-mail novo depois de mexer em
+endereço.
+
+**Conta de teste apagada pra permitir o reteste.** Cadastrar de novo com e-mail já existente não
+envia nada (`user_repeated_signup`, ver seção 34), então a `magrotto23@gmail.com` foi removida —
+tinha 5 lançamentos de crédito, 4 buscas e **20 leads entregues**. A cascata de `auth.users` →
+`profiles` → demais tabelas limpou tudo sem resíduo (verificado tabela a tabela; restaram 5 contas).
+
+**Efeito colateral que vale saber:** junto foi o histórico de dedup daquela conta. A regra de não
+repetir lead por 6 meses (história 3.1) se apoia em `delivered_leads`, então buscas futuras nessa
+conta podem trazer empresas que ela já havia recebido em julho. Irrelevante numa conta de teste,
+mas seria perda real numa conta de cliente — **excluir usuário apaga a memória de dedup dele**.
+
+A alternativa que teria evitado a exclusão é o alias do Gmail (`usuario+t3@gmail.com`): o Supabase
+trata como endereço novo e envia a confirmação, enquanto o Gmail entrega na mesma caixa. Fica
+registrado como a técnica padrão pra testar cadastro sem mexer em dado.
+
+**Pendência de sincronia:** o servidor está no commit `1feab77` e a `main` já tem o `997c571` (a
+correção das mensagens de erro). Um deploy a menos — a correção do frontend só aparece no ar depois
+de rodar `./deploy/deploy.sh`.
+
+---
+
+*Última atualização: 2026-09-02 — **fluxo completo do cliente validado em produção**: cadastro em
+app.leadoor.com.br, e-mail de confirmação chegando com link correto, conta ativada e busca de leads
+executada com sucesso. Corrigido o descarte de `detalhes` nas mensagens de erro do frontend, que
+fazia o usuário ver "Dados inválidos" enquanto o servidor já dizia o motivo exato; e registrado que
+o link do e-mail vem de `location.origin` do frontend, não do Supabase (seção 36). Antes: a
+aplicação migrou para app.leadoor.com.br depois que um sócio repontou o domínio raiz para uma
+landing page, e o servidor foi atualizado no primeiro deploy manual de verdade, que expôs os scripts
+sem permissão de execução no git (seção 35); e-mail transacional destravado com o domínio verificado
+no Resend (seção 34); história 2.7 (cartão via Mercado Pago) implementada como 🟡 (seção 33); 7.6
+quebrada pela migração da RFB para Nextcloud (seção 32); HTTPS no ar (seção 31); 7.2 concluída
+(seção 30); DNS e VPS (seções 28-29); auditoria do dicionário CNAE (seções 26-27); bug do
+`confirmar_compra`/`anon` (seção 23); ver seções 13-36.*
