@@ -356,7 +356,7 @@
 
   function mostrarMsgAcao(ok, corpo, mensagemOk) {
     const el = document.getElementById('msgAcao');
-    el.textContent = ok ? mensagemOk : (corpo?.erro || 'Falha na operação.');
+    el.textContent = ok ? mensagemOk : mensagemErro(corpo, 'Falha na operação.');
     el.className = `msg ${ok ? 'sucesso' : 'erro'}`;
   }
 
@@ -535,7 +535,7 @@
     const res = await authFetch(`/api/admin/compras/${id}/confirmar`, { method: 'POST' });
     if (!res.ok) {
       const corpo = await res.json().catch(() => ({}));
-      alert(corpo?.erro || 'Falha ao confirmar a compra.');
+      alert(mensagemErro(corpo, 'Falha ao confirmar a compra.'));
       return;
     }
     carregarFilaPix();

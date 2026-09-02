@@ -170,7 +170,7 @@
         body: JSON.stringify({ pacote, metodo }),
       });
       const compra = await res.json();
-      if (!res.ok) throw new Error(compra.erro || 'Erro ao criar a compra');
+      if (!res.ok) throw new Error(mensagemErro(compra, 'Erro ao criar a compra.'));
 
       // Cartão: o pagamento acontece no ambiente do Mercado Pago, não aqui.
       // Saímos da página; a volta é tratada por conferirRetornoDoCheckout().

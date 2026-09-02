@@ -738,7 +738,7 @@
         body: JSON.stringify({ nicho, regiao, quantidade })
       });
       previa = await res.json();
-      if (!res.ok) throw new Error(previa.erro || 'Erro ao consultar prévia');
+      if (!res.ok) throw new Error(mensagemErro(previa, 'Erro ao consultar prévia.'));
     } catch (err) {
       btn.disabled = false;
       btn.innerHTML = htmlOriginal;
@@ -782,7 +782,7 @@
         body: JSON.stringify({ nicho, regiao, quantidade, modo: modoAtual })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.erro || 'Erro desconhecido');
+      if (!res.ok) throw new Error(mensagemErro(data, 'Não foi possível iniciar a busca.'));
       sessId = data.sessionId;
       await conectar(sessId);
     } catch (err) {

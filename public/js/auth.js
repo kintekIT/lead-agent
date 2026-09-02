@@ -43,3 +43,20 @@ async function sair() {
   if (sb) await sb.auth.signOut();
   window.location.href = '/login.html';
 }
+
+/* Mensagem de erro legível a partir da resposta da API.
+ *
+ * O middleware de validação (história 4.2) responde
+ *   { erro: 'Dados inválidos.', detalhes: [{ campo, mensagem }] }
+ * e até agora as telas mostravam só o `erro` — o usuário via "Dados
+ * inválidos" sem saber QUAL campo nem POR QUÊ, enquanto o servidor já tinha
+ * dito exatamente isso em `detalhes`. Aqui a informação específica ganha
+ * prioridade sobre a genérica.
+ */
+function mensagemErro(corpo, alternativa = 'Ocorreu um erro. Tente novamente.') {
+  if (!corpo) return alternativa;
+  if (Array.isArray(corpo.detalhes) && corpo.detalhes.length) {
+    return corpo.detalhes.map((d) => d.mensagem).join(' ');
+  }
+  return corpo.erro || alternativa;
+}
