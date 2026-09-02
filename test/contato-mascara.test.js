@@ -134,3 +134,20 @@ test('provedor público nunca é tratado como máscara — gmail é 55% da base'
   assert.equal(ehProvedorPublico(''), false);
   assert.equal(ehProvedorPublico(null), false);
 });
+
+test('erros de digitação de provedor público não podem virar máscara', () => {
+  // Achado ao conferir a primeira geração da tabela contra a base real:
+  // 32.847 e-mails de pessoas que erraram uma letra tinham sido marcados
+  // como contato de intermediário.
+  for (const d of ['gmai.com', 'gamil.com', 'gmal.com', 'hotmai.com', 'gmail.con']) {
+    assert.equal(ehProvedorPublico(d), true, `${d} é erro de digitação, não intermediário`);
+  }
+});
+
+test('provedor brasileiro menor e e-mail profissional individual ficam protegidos', () => {
+  assert.equal(ehProvedorPublico('uai.com.br'), true);
+  assert.equal(ehProvedorPublico('ibest.com.br'), true);
+  assert.equal(ehProvedorPublico('sercomtel.com.br'), true);
+  // cada advogado da OAB-SP tem o seu — é pessoal, não de escritório
+  assert.equal(ehProvedorPublico('adv.oabsp.org.br'), true);
+});

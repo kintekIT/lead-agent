@@ -30,6 +30,28 @@ const PROVEDORES_PUBLICOS = new Set([
   // Outros internacionais de uso pessoal
   'aol.com', 'protonmail.com', 'proton.me', 'gmx.com', 'mail.com',
   'yandex.com', 'zoho.com', 'tutanota.com',
+
+  // Provedores/ISPs brasileiros menores — o e-mail continua sendo da pessoa.
+  // Todos apareceram na primeira geração da tabela (02/09) com 2.700 a 7.400
+  // ocorrências, volume suficiente pra cruzar o limiar de domínio.
+  'uai.com.br', 'ibest.com.br', 'sercomtel.com.br', 'vivax.com.br',
+  'lpnet.com.br', 'com4.com.br', 'email.com', 'email.com.br',
+  'net.com.br', 'gvt.net.br', 'virtua.com.br', 'veloxmail.com',
+
+  // E-mail profissional individual, não de intermediário: cada advogado
+  // inscrito na OAB-SP tem o seu.
+  'adv.oabsp.org.br',
+
+  // ── Erros de digitação de provedor público ──
+  // Quem escreve "gmai.com" é uma pessoa física errando uma letra, não um
+  // escritório de contabilidade. Sem estas entradas, a primeira geração da
+  // tabela marcou 32.847 e-mails legítimos como máscara — o segundo maior
+  // grupo depois da Contabilizei. Descoberto conferindo a lista gerada em
+  // 2026-09-02, e é o tipo de coisa que só aparece olhando o resultado real.
+  'gmai.com', 'gamil.com', 'gmal.com', 'gmial.com', 'gmail.con', 'gmail.co',
+  'gmailcom.com', 'hotmai.com', 'hotmial.com', 'hotmail.con', 'hotmail.co',
+  'htomail.com', 'outlok.com', 'outllok.com', 'yaho.com', 'yahoo.co',
+  'terra.com', 'uol.com', 'bol.com',
 ]);
 
 function ehProvedorPublico(dominio) {
