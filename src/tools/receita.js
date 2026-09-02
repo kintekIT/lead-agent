@@ -7,7 +7,11 @@ const {
   ehPalavraAmbigua,
 } = require('../config/sinonimos-cnae');
 
-const DB_PATH = path.join(__dirname, '../../data/receita.db');
+// RECEITA_DB_PATH permite apontar pra outro banco sem tocar no de produção.
+// Existe por dois motivos concretos: os testes montam um banco falso pequeno
+// pra exercitar as regras de filtro (história 3.5), e a atualização mensal
+// (Épico 7.6) constrói a base nova num arquivo separado antes de trocar.
+const DB_PATH = process.env.RECEITA_DB_PATH || path.join(__dirname, '../../data/receita.db');
 
 function normalizar(str) {
   return String(str || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
@@ -196,16 +200,39 @@ function buscarLeadsReceita(nicho, regiao, quantidade) {
     // mas estabelecimentos.cnpj_basico é limpo "41273589"
     const munPH = nomesMunicipio.map(() => '?').join(',');
 
-    // Emails genéricos (ex.: contador que registra o mesmo email em centenas
-    // de CNPJs de clientes) só são filtrados se a tabela auxiliar já tiver
-    // sido gerada — ver src/scripts/detectar-emails-genericos.js.
+    // Contato-máscara (história 3.5): contato que não é da empresa, e sim de
+    // um intermediário (contabilidade, abridora de MEI, banco) que cadastrou
+    // o próprio dado no CNPJ de milhares de clientes. Um em cada cinco
+    // registros da base tem pelo menos um contato assim.
+    //
+    // As três tabelas são geradas por src/scripts/detectar-contatos-mascara.js
+    // e podem não existir (base recém-importada, ou script nunca rodado).
+    // Cada filtro é aplicado só se a sua tabela existir — a busca nunca
+    // quebra por falta delas, mas avisa.
     const avisos = [];
-    const temEmailsGenericos = db.prepare(
-      `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'emails_genericos'`
-    ).get();
-    if (!temEmailsGenericos) {
-      avisos.push('Filtro de e-mails genéricos ainda não foi gerado (rode: npm run detectar-emails-genericos). Busca seguiu sem esse filtro.');
+    const existeTabela = (nome) => Boolean(db.prepare(
+      `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`
+    ).get(nome));
+
+    const temEmails    = existeTabela('emails_genericos');
+    const temDominios  = existeTabela('dominios_genericos');
+    const temTelefones = existeTabela('telefones_genericos');
+
+    if (!temEmails && !temDominios && !temTelefones) {
+      avisos.push('Filtro de contato-máscara ainda não foi gerado (rode: npm run detectar-contatos-mascara). A busca pode trazer e-mail e telefone de escritórios de contabilidade.');
     }
+
+    // Expressões SQL que dizem, por linha, se cada contato é máscara. Viram
+    // '0' quando a tabela correspondente não existe, então o SQL continua
+    // válido e a condição simplesmente nunca casa.
+    const condEmailMascara = [
+      temEmails   && `e.email IN (SELECT email FROM emails_genericos)`,
+      temDominios && `lower(substr(e.email, instr(e.email, '@') + 1)) IN (SELECT dominio FROM dominios_genericos)`,
+    ].filter(Boolean).join(' OR ') || '0';
+
+    const condTelMascara = temTelefones
+      ? `e.telefone IN (SELECT telefone FROM telefones_genericos)`
+      : '0';
 
     let sql = `
       SELECT
@@ -220,7 +247,9 @@ function buscarLeadsReceita(nicho, regiao, quantidade) {
         e.numero,
         e.bairro,
         e.cep,
-        REPLACE(c.descricao, '"', '') AS atividade
+        REPLACE(c.descricao, '"', '') AS atividade,
+        (${condEmailMascara}) AS email_mascara,
+        (${condTelMascara})   AS telefone_mascara
       FROM estabelecimentos e
       LEFT JOIN empresas em ON em.cnpj_basico = '"' || e.cnpj_basico || '"'
       LEFT JOIN cnaes c ON c.codigo = e.cnae
@@ -231,7 +260,19 @@ function buscarLeadsReceita(nicho, regiao, quantidade) {
 
     if (uf) sql += ' AND e.uf = ?';
     if (nomesMunicipio.length > 0) sql += ` AND e.municipio IN (${munPH})`;
-    if (temEmailsGenericos) sql += ' AND e.email NOT IN (SELECT email FROM emails_genericos)';
+
+    // Política de descarte (história 3.5): o lead só sai quando os DOIS
+    // contatos são máscara — aí não há como falar com a empresa e entregá-lo
+    // seria cobrar um crédito por nada. Se só um for máscara, o lead fica e
+    // o campo ruim é apagado depois (ver limpeza abaixo): sobrando e-mail OU
+    // telefone da própria empresa, o lead ainda serve.
+    //
+    // A diferença é grande: descartar quando qualquer contato é máscara
+    // eliminaria 22,3% da base; só quando ambos são, 10,9% (medido em
+    // 2026-09-02 — ver CONTEXTO.md seção 37).
+    if (temEmails || temDominios || temTelefones) {
+      sql += ` AND NOT ((${condEmailMascara}) AND (${condTelMascara}))`;
+    }
     sql += ' LIMIT ?';
 
     // Uma query por CNAE (em vez de um único WHERE cnae IN (...) com LIMIT):
@@ -262,6 +303,22 @@ function buscarLeadsReceita(nicho, regiao, quantidade) {
         sucesso: false,
         mensagem: `Sem resultados para "${nicho}" em "${regiao}". CNAEs encontrados: ${cnaeCodigos.length}. Tente uma região maior ou palavras-chave diferentes.`,
       };
+    }
+
+    // Apaga o contato que é máscara, mantendo o lead (história 3.5). Entregar
+    // o telefone do contador é pior que entregar o campo vazio: o cliente
+    // liga, perde tempo e conclui que o lead é ruim. Os que chegaram aqui têm
+    // garantidamente ao menos um contato real — o SQL acima já descartou quem
+    // tinha os dois mascarados.
+    let camposLimpos = 0;
+    for (const lead of leads) {
+      if (lead.email_mascara) { lead.email = ''; camposLimpos++; }
+      if (lead.telefone_mascara) { lead.telefone = ''; camposLimpos++; }
+      delete lead.email_mascara;
+      delete lead.telefone_mascara;
+    }
+    if (camposLimpos > 0) {
+      avisos.push(`${camposLimpos} contato(s) de escritório de contabilidade foram removidos dos leads — os campos ficaram em branco, e cada lead entregue mantém ao menos um contato real.`);
     }
 
     return { sucesso: true, leads, cnaesUsados: cnaeCodigos.length, avisos };

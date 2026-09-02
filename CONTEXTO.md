@@ -1455,15 +1455,95 @@ de rodar `./deploy/deploy.sh`.
 
 ---
 
-*Última atualização: 2026-09-02 — **fluxo completo do cliente validado em produção**: cadastro em
-app.leadoor.com.br, e-mail de confirmação chegando com link correto, conta ativada e busca de leads
-executada com sucesso. Corrigido o descarte de `detalhes` nas mensagens de erro do frontend, que
-fazia o usuário ver "Dados inválidos" enquanto o servidor já dizia o motivo exato; e registrado que
-o link do e-mail vem de `location.origin` do frontend, não do Supabase (seção 36). Antes: a
-aplicação migrou para app.leadoor.com.br depois que um sócio repontou o domínio raiz para uma
-landing page, e o servidor foi atualizado no primeiro deploy manual de verdade, que expôs os scripts
-sem permissão de execução no git (seção 35); e-mail transacional destravado com o domínio verificado
-no Resend (seção 34); história 2.7 (cartão via Mercado Pago) implementada como 🟡 (seção 33); 7.6
-quebrada pela migração da RFB para Nextcloud (seção 32); HTTPS no ar (seção 31); 7.2 concluída
-(seção 30); DNS e VPS (seções 28-29); auditoria do dicionário CNAE (seções 26-27); bug do
-`confirmar_compra`/`anon` (seção 23); ver seções 13-36.*
+## 37. História 3.5 — filtro de contato-máscara: o problema era maior, e metade da solução já existia sem estar ligada (2026-09-02)
+
+Pedido da reunião: "melhorar a qualidade dos leads — remover contato máscara, e-mail tipo
+`@contabilizei`, telefone que se repete muitas vezes". A investigação achou duas coisas
+inesperadas.
+
+**1. O filtro de e-mail genérico da 3.4 existia desde julho e NUNCA foi ativado em produção.** A
+tabela `emails_genericos` não existia no `receita.db` do servidor. O código trata isso com elegância
+— segue a busca e devolve um aviso em `resultado.avisos` — e foi exatamente essa elegância que
+escondeu o problema por seis semanas: **o aviso ia pro log e ninguém leu**. Toda busca entregue até
+hoje veio com e-mail de contador.
+
+Lição de projeto: degradação graciosa que não falha alto vira falha silenciosa. Um filtro de
+qualidade ausente deveria ser mais barulhento — aparecer na interface, não só no log.
+
+**2. O caso citado na reunião não seria pego nem com o script rodando.** Ele agrupa por **e-mail
+exato**. Se o intermediário cadastra um endereço diferente por cliente
+(`cliente1@contabilizei.com.br`, `cliente2@…`), cada e-mail aparece uma vez e passa limpo. **Só a
+contagem por domínio pega esse padrão** — e ela não existia.
+
+**Os dados reais (23,9M linhas, medidos em 02/09):**
+
+| | Registros | % da base |
+|---|---|---|
+| E-mail é máscara | 4.192.005 | 17,52% |
+| Telefone é máscara | 3.755.812 | 15,69% |
+| **Ambos** | 2.606.778 | 10,89% |
+| Pelo menos um | 5.341.039 | 22,32% |
+
+Campeões: `meucnpj@contabilizei.com.br` **128.766x**, `abertura@maismei.com.br` **117.165x**, e o
+telefone `(41) 9788-0145` **83.768x** (DDD 41 = Curitiba, sede da Contabilizei). Por domínio:
+`contabilizei.com.br` 159.609, `maismei.com.br` 117.188, `citi.com` 14.097.
+
+**A armadilha do filtro por domínio, e por que ela quase inviabiliza a ideia.** O domínio mais
+frequente da base é `gmail.com`, com **13,08 milhões de ocorrências — 55% de tudo**. Depois
+`hotmail.com` com 4M. Um filtro por domínio sem exceção começaria destruindo a base, porque o gmail
+é o contato **legítimo** da padaria e da clínica pequena. Daí `src/config/provedores-publicos.js`,
+com a exclusão aplicada **na geração** da tabela — assim `dominios_genericos` nunca chega a conter
+um provedor público, e nenhum consumidor precisa lembrar dessa exceção.
+
+**A política de descarte, decidida com o número na mão.** Havia três caminhos, e a diferença entre
+eles é de milhões de leads:
+
+| Política | Sobra |
+|---|---|
+| Remover se **qualquer** contato for máscara | 18.590.314 (77,7%) |
+| Remover só se **ambos** forem | 21.324.575 (89,1%) |
+
+O que decidiu foi a sobreposição: dos 4,19M com e-mail ruim, 2,61M **também** têm telefone ruim — o
+intermediário costuma cadastrar os dois. Sobram **2,73 milhões de leads com exatamente um contato
+bom**, e descartá-los seria desperdício.
+
+Adotado (decisão de Otávio, 02/09): **apagar o campo que é máscara e remover o lead só quando os
+dois forem.** A opção "remover só quando ambos" pura tinha um defeito que os números escondem — o
+lead sobreviveria exibindo o telefone da Contabilizei, o cliente ligaria, cairia no contador, e a
+reclamação continuaria com o filtro ligado. Apagando o campo, **nenhum cliente recebe contato de
+terceiro**, e toda linha entregue tem ao menos um contato real.
+
+Efeito colateral aceito conscientemente: hoje **toda** linha da base tem e-mail e telefone
+preenchidos (zero registros vazios em 23,9M — a importação já descarta quem não tem contato).
+Passará a existir linha com um campo em branco. Campo vazio é melhor que campo com dado inútil: o
+cliente não perde tempo pra descobrir.
+
+**Amarração com a atualização mensal (7.6), que era um bug esperando acontecer.** As três tabelas
+vivem **dentro** do `receita.db`. A troca da base na atualização mensal as levaria junto, e o filtro
+sumiria — em silêncio, do mesmo jeito que já tinha acontecido. `atualizar-receita-mensal.sh` agora
+regenera as tabelas antes do restart.
+
+**`RECEITA_DB_PATH`** foi acrescentado para permitir apontar o motor a outro banco. Serve à 7.6
+(constrói a base nova em separado) e destravou o teste de verdade: `test/contato-mascara.test.js`
+monta um banco falso com os quatro casos (contato limpo, só e-mail ruim, só telefone ruim, ambos
+ruins) e verifica a política inteira — não só funções puras, que era o limite dos testes da 3.4.
+Suíte: **78/78**.
+
+**Estado: 🟡.** Falta rodar `npm run detectar-contatos-mascara` no servidor. Enquanto não rodar, o
+filtro segue inativo e a busca continua entregando contato de contador — exatamente como esteve nas
+últimas seis semanas.
+
+---
+
+*Última atualização: 2026-09-02 — história 3.5 (filtro de contato-máscara) implementada como 🟡:
+falta rodar o script no servidor. A investigação achou que **um em cada cinco registros da base tem
+contato de intermediário** e que o filtro de e-mail da 3.4 nunca foi ativado em produção — o aviso
+de "filtro não gerado" ia pro log e ninguém leu. Três filtros agora (e-mail exato, domínio
+corporativo com provedores públicos protegidos, telefone), com a política de apagar o campo ruim e
+descartar o lead só quando os dois forem, decidida a partir do impacto medido (seção 37). Antes, no
+mesmo dia: fluxo completo do cliente validado em produção e correção do descarte de `detalhes` nas
+mensagens de erro (seção 36); migração para app.leadoor.com.br e primeiro deploy manual (seção 35);
+e-mail transacional destravado no Resend (seção 34); história 2.7 de cartão (seção 33); 7.6 quebrada
+pela migração da RFB (seção 32); HTTPS no ar (seção 31); 7.2 (seção 30); DNS e VPS (seções 28-29);
+auditoria do dicionário CNAE (seções 26-27); bug do `confirmar_compra`/`anon` (seção 23); ver seções
+13-37.*

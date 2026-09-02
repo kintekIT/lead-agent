@@ -12,7 +12,8 @@
     "rpa": "node src/index-rpa.js",
     "importar-receita": "node src/scripts/importar-receita.js",
     "validar-sinonimos": "node src/scripts/validar-sinonimos.js",
-    "detectar-emails-genericos": "node src/scripts/detectar-emails-genericos.js",
+    "detectar-contatos-mascara": "node src/scripts/detectar-contatos-mascara.js",
+    "detectar-emails-genericos": "node src/scripts/detectar-contatos-mascara.js",
     "test": "cross-env NODE_ENV=test node --test"
   },
   "dependencies": {
