@@ -77,6 +77,15 @@ rm -f "$APP_DIR/data/receita.db.anterior"
 mv "$APP_DIR/data/receita.db" "$APP_DIR/data/receita.db.anterior"
 mv "$TMP_DIR/data/receita.db" "$APP_DIR/data/receita.db"
 
+# ── Regenera as tabelas de contato-máscara (história 3.5) ──
+#    Elas vivem DENTRO do receita.db, então a troca acima as levou embora
+#    junto com a base antiga. Sem este passo o filtro simplesmente para de
+#    existir e a busca volta a entregar e-mail e telefone de escritório de
+#    contabilidade — em silêncio, com um aviso que ninguém lê.
+#    Roda ANTES do restart, pra aplicação já subir com o filtro ativo.
+echo "[$(date -Iseconds)] Regenerando tabelas de contato-máscara"
+( cd "$APP_DIR" && npm run detectar-contatos-mascara )
+
 # ── Reinicia a app: o processo em memória mantém aberto o arquivo antigo
 #    (por inode) até reiniciar, mesmo depois do mv trocar o que o nome
 #    "receita.db" aponta ──
