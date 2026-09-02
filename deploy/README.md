@@ -61,7 +61,7 @@ npm ci --omit=dev
 ```
 
 **`.env`**: nunca vai pelo git. Copie o conteúdo manualmente (SSH/SCP, nunca por canal público) —
-mesmas variáveis do `.env.example` na raiz, valores de produção (chaves reais do Supabase, `PIX_CHAVE`, `APP_ORIGIN=https://leadoor.com.br`, etc.).
+mesmas variáveis do `.env.example` na raiz, valores de produção (chaves reais do Supabase, `PIX_CHAVE`, `APP_ORIGIN=https://app.leadoor.com.br`, etc.).
 
 **`data/receita.db`** (11,2GB — não vai pelo git, está no `.gitignore`): transfira do seu
 computador pro servidor. **Mande o zip, não o `.db` cru** — `data/receita-db.zip` tem 4,3GB e
@@ -126,8 +126,19 @@ Esse é o mesmo script que a história 7.4 (CI/CD) chama automaticamente depois 
 
 ## 7.3 — Domínio + Caddy + HTTPS
 
+> **Mudança de arranjo em 2026-09-01:** o domínio raiz (`leadoor.com.br` e `www`) passou a servir
+> uma **landing page hospedada fora daqui**, e a aplicação mudou pro subdomínio
+> **`app.leadoor.com.br`**. Marketing na raiz, produto no subdomínio — arranjo padrão de SaaS.
+> Subdomínio não custa nada: quem registra o domínio tem direito a todos eles.
+>
+> Três lugares precisam concordar sobre esse endereço, e esquecer um quebra de formas diferentes:
+> o **Caddyfile** (senão não emite certificado), o **`APP_ORIGIN`** do `.env` (senão o CORS bloqueia
+> o próprio frontend) e o **Site URL do Supabase** (senão o link do e-mail de confirmação leva o
+> cliente pro lugar errado).
+
+
 **Antes de tudo:** aponte o domínio pro IP do VPS — registro DNS tipo `A`,
-`leadoor.com.br` → `SEU_IP` (no painel do seu provedor de domínio, ex.
+`app.leadoor.com.br` → `SEU_IP` (no painel do seu provedor de domínio, ex.
 registro.br). Espera propagar (pode levar de minutos a algumas horas) antes
 de seguir, senão o Caddy não consegue emitir o certificado.
 
@@ -142,7 +153,7 @@ sudo apt install -y caddy
 ```
 
 Editar `/etc/caddy/Caddyfile` com o conteúdo de [`Caddyfile`](Caddyfile) (já vem com
-`leadoor.com.br` configurado), depois:
+`app.leadoor.com.br` configurado), depois:
 
 ```bash
 sudo systemctl reload caddy
@@ -153,7 +164,7 @@ O Caddy emite e renova o certificado Let's Encrypt sozinho — não precisa `cer
 **Não esqueça de atualizar o `.env`** no servidor com o domínio real, senão o CORS (história 4.1) bloqueia o próprio frontend:
 
 ```env
-APP_ORIGIN=https://leadoor.com.br
+APP_ORIGIN=https://app.leadoor.com.br
 ```
 
 e reiniciar (`pm2 reload deploy/ecosystem.config.js --update-env`).
@@ -162,7 +173,7 @@ e reiniciar (`pm2 reload deploy/ecosystem.config.js --update-env`).
 > Caddy como reverse proxy de confiança — sem isso, o rate limit por IP (história 4.1/4.3) veria
 > todo mundo vindo do mesmo IP (o do próprio Caddy) e quebraria silenciosamente em produção.
 
-Confirme com `curl -I https://leadoor.com.br/health` — deve responder `200` com certificado válido.
+Confirme com `curl -I https://app.leadoor.com.br/health` — deve responder `200` com certificado válido.
 
 ---
 

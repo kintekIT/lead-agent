@@ -3,17 +3,25 @@
 #
 # Caddy renova o certificado sozinho — não precisa cron nem certbot. Só
 # funciona depois que o DNS do domínio (registro A) apontar pro IP da VPS.
+#
+# ─── ATENÇÃO: a aplicação NÃO fica mais no domínio raiz (2026-09-01) ───
+#
+# O `leadoor.com.br` e o `www` passaram a servir uma landing page hospedada
+# fora daqui (Lovable, IP 185.158.133.1). A aplicação mudou pro subdomínio
+# `app.leadoor.com.br`. É o arranjo padrão de SaaS: marketing na raiz,
+# produto no subdomínio.
+#
+# Por que este arquivo NÃO pode continuar listando o domínio raiz: o Caddy
+# tenta renovar o certificado de todo nome que estiver aqui, e a renovação
+# exige que o nome aponte pra esta máquina. Como o raiz aponta pra outro
+# lugar, a renovação falharia em loop e queimaria a cota de tentativas da
+# Let's Encrypt — que é limitada por domínio e por hora.
+#
+# Ao mudar o domínio aqui, mudar TAMBÉM o APP_ORIGIN no .env do servidor
+# (CORS, história 4.1) e o Site URL no painel do Supabase (é o endereço que
+# entra no link do e-mail de confirmação). Os três têm que concordar.
 
-# O www redireciona pro domínio principal, e isso NÃO é cosmético: o
-# APP_ORIGIN (CORS, história 4.1) é https://leadoor.com.br. Se alguém
-# navegasse por www.leadoor.com.br, a página abriria mas toda chamada à
-# API seria cross-origin e o navegador a bloquearia — o site pareceria
-# carregado e nenhum botão funcionaria. Uma origem canônica só evita isso.
-www.leadoor.com.br {
-	redir https://leadoor.com.br{uri} permanent
-}
-
-leadoor.com.br {
+app.leadoor.com.br {
 	reverse_proxy localhost:3000
 
 	encode gzip
