@@ -1310,16 +1310,91 @@ parte do problema.
 
 ---
 
-*Última atualização: 2026-08-30 — **e-mail transacional funcionando**: domínio verificado no Resend,
-SMTP corrigido (username era `kintekit@gmail.com`, tem que ser `resend`; remetente estava vazio) e
-Site URL apontando pro domínio real. Fecha a pendência que impedia qualquer cliente novo de concluir
-cadastro (seção 34). No mesmo dia: história 2.7 (pagamento com cartão via Mercado Pago) implementada
-e mergeada como 🟡 — falta aplicar a migration, cadastrar credenciais e testar ponta a ponta; a
-assinatura recorrente virou a 2.8, ainda não iniciada (seção 33); `app.listen` restrito a
-`127.0.0.1` e a 7.6 descoberta quebrada porque a RFB migrou pra um compartilhamento Nextcloud (seção
-32); **https://leadoor.com.br no ar com HTTPS válido** (7.3, seção 31); 7.2 concluída com a aplicação
-sob pm2 e o banco da Receita validado (seção 30); DNS apontado e VPS conferida (seção 29); domínio
-comprado, VPS contratada e 7.1 validada (seção 28). **Atenção: o servidor de produção ainda roda o
-commit `6f02b92`** — a correção do `app.listen` e a história 2.7 estão na `main` mas não foram
-aplicadas lá. Antes: auditoria do dicionário CNAE (seções 26-27); custos e go-live no `BACKLOG.md`
-(seção 25); bug do `confirmar_compra`/`anon` (seção 23); ver seções 13-34.*
+## 35. A aplicação migra para `app.leadoor.com.br` — e o primeiro deploy manual de verdade (2026-09-01)
+
+**Incidente que virou melhoria de arquitetura.** Um dos sócios publicou uma landing page (feita no
+Lovable) e repontou o DNS de `leadoor.com.br` e `www` pra ela — **sem avisar e sem mover a aplicação
+junto**. Resultado: o produto continuou rodando perfeitamente na VPS, mas ficou sem endereço público.
+
+**O que sobreviveu, e por sorte:** o sócio **editou** a zona em vez de recriar. Os três registros de
+e-mail (DKIM + os dois CNAMEs do Resend, conquistados na seção 34) ficaram intactos. Se tivesse
+recriado a zona do zero, a verificação do Resend precisaria ser refeita inteira.
+
+**A consequência real não era o site fora do ar** — era o **link do e-mail de confirmação**, que
+apontava pra `leadoor.com.br` e passou a cair na landing page. Quem se cadastrasse receberia o
+e-mail e não conseguiria concluir. O sintoma óbvio (site inacessível) era menos grave que o
+silencioso.
+
+**A correção não foi reverter.** Marketing na raiz e produto em subdomínio é o arranjo padrão de
+SaaS — o sócio fez a coisa certa, só que sem mover a aplicação. Arranjo final:
+
+```
+leadoor.com.br      →  185.158.133.1  (landing page, Lovable)
+www.leadoor.com.br  →  185.158.133.1  (landing page)
+app.leadoor.com.br  →  179.199.132.111 (a aplicação)
+```
+
+Subdomínio não custa nada — quem registra o domínio tem direito a todos abaixo dele. A dúvida
+apareceu na hora ("vou ter que comprar outro domínio?") e vale deixar registrado que não.
+
+**Três lugares precisam concordar sobre esse endereço, e cada um quebra de um jeito diferente:**
+
+| Onde | Se ficar desatualizado |
+|---|---|
+| `deploy/Caddyfile` | não emite certificado — erro de TLS no navegador |
+| `APP_ORIGIN` no `.env` | CORS bloqueia o próprio frontend: a página abre e nada funciona |
+| Site URL do Supabase | o link do e-mail de confirmação leva o cliente pro lugar errado |
+
+**Por que o Caddyfile teve que PARAR de listar o domínio raiz** (e não é arrumação): o Caddy tenta
+renovar o certificado de todo nome configurado nele, e a renovação exige que o nome aponte pra
+máquina. Mantendo `leadoor.com.br` ali, daqui a ~60 dias ele entraria em loop de falha e queimaria a
+cota de tentativas da Let's Encrypt, que é limitada por domínio e por hora.
+
+**Distinção do Supabase que confundiu na hora:** `Redirect URLs` é lista de permissão (quais
+endereços são *aceitos* como destino); `Site URL` é o endereço que o Supabase **escreve dentro do
+e-mail**. Adicionar o subdomínio só na lista não muda o link enviado — os dois campos salvam
+separadamente, e é fácil fazer metade.
+
+---
+
+**Este foi o primeiro deploy manual de verdade do projeto**, e expôs coisas que só aparecem fazendo:
+
+- **Os scripts de deploy não eram executáveis.** Estavam gravados no git como `100644`, então o
+  clone no servidor os trouxe sem permissão de execução e o `./deploy/deploy.sh` falhou com
+  `Permission denied`. O Git no Windows não preserva o bit de execução do sistema de arquivos — ele
+  precisa estar no índice. Corrigido com `git update-index --chmod=+x` nos quatro scripts; clones
+  futuros já vêm certos.
+- **`deploy.sh` não cobre o deploy inteiro.** Ele faz `git pull` + `npm ci` + `pm2 reload`, e só. Não
+  aplica o Caddyfile, não mexe no `.env`, não recarrega o Caddy. Quem seguir só o script vai achar
+  que terminou e o endereço novo não vai funcionar. A sequência completa está no `deploy/README.md`.
+- **O `curl` de teste falhou por impaciência, não por erro.** Os comandos foram colados de uma vez, e
+  o teste rodou nos ~10 segundos em que a Let's Encrypt ainda estava emitindo o certificado. O log
+  do Caddy mostrava `certificate obtained successfully` logo em seguida. **Rodar um comando por vez
+  nessa etapa** evita diagnosticar um problema que não existe.
+
+**Servidor atualizado de 17/08 para o commit atual** (`1feab77`, versão 1.0.8) — de uma vez recebeu a
+correção do `app.listen`, a história 2.7 inteira e o Caddyfile novo. Fecha a pendência de defasagem
+registrada na seção 32.
+
+**Validado de fora, pela internet:** `https://app.leadoor.com.br/health` → 200 com certificado
+válido; interface completa em 200; `/api/me` sem token → 401; landing page na raiz → 200, intacta; e
+**a porta 3000 sem resposta de fora** — agora com duas barreiras em vez de uma, porque a correção do
+`app.listen` (seção 32) entrou em vigor neste deploy.
+
+**Combinado de processo que ficou faltando:** alterações no DNS precisam ser avisadas antes. A zona
+agora é compartilhada entre a landing page e a aplicação, e uma edição desatenta derruba o produto
+ou, pior, apaga a configuração de e-mail.
+
+---
+
+*Última atualização: 2026-09-01 — **a aplicação migrou para https://app.leadoor.com.br** depois que
+um sócio repontou o domínio raiz para uma landing page; arranjo final é marketing na raiz e produto
+no subdomínio. Servidor atualizado de 17/08 para o commit atual (1.0.8), fechando a defasagem: entrou
+a correção do `app.listen` e a história 2.7. Primeiro deploy manual de verdade do projeto, que expôs
+os scripts sem permissão de execução no git e o fato de o `deploy.sh` não cobrir Caddy nem `.env`
+(seção 35). Antes: e-mail transacional funcionando com o domínio verificado no Resend (seção 34);
+história 2.7 (cartão via Mercado Pago) implementada como 🟡, faltando migration, credenciais e teste
+ponta a ponta (seção 33); 7.6 descoberta quebrada pela migração da RFB para Nextcloud (seção 32);
+HTTPS no ar (7.3, seção 31); 7.2 concluída (seção 30); DNS e VPS (seções 28-29). Antes: auditoria do
+dicionário CNAE (seções 26-27); custos e go-live no `BACKLOG.md` (seção 25); bug do
+`confirmar_compra`/`anon` (seção 23); ver seções 13-35.*
