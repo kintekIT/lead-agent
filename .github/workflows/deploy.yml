@@ -18,7 +18,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          # Mesma versão da produção (Node 24 na VPS). Testar numa versão
+          # diferente da que roda no servidor é convite a passar no CI e
+          # quebrar no deploy — o better-sqlite3 tem binário nativo compilado
+          # por versão de Node.
+          node-version: '24'
           cache: 'npm'
       - run: npm ci
       - run: npm test
