@@ -1535,15 +1535,56 @@ filtro segue inativo e a busca continua entregando contato de contador — exata
 
 ---
 
-*Última atualização: 2026-09-02 — história 3.5 (filtro de contato-máscara) implementada como 🟡:
-falta rodar o script no servidor. A investigação achou que **um em cada cinco registros da base tem
-contato de intermediário** e que o filtro de e-mail da 3.4 nunca foi ativado em produção — o aviso
-de "filtro não gerado" ia pro log e ninguém leu. Três filtros agora (e-mail exato, domínio
-corporativo com provedores públicos protegidos, telefone), com a política de apagar o campo ruim e
-descartar o lead só quando os dois forem, decidida a partir do impacto medido (seção 37). Antes, no
-mesmo dia: fluxo completo do cliente validado em produção e correção do descarte de `detalhes` nas
-mensagens de erro (seção 36); migração para app.leadoor.com.br e primeiro deploy manual (seção 35);
-e-mail transacional destravado no Resend (seção 34); história 2.7 de cartão (seção 33); 7.6 quebrada
-pela migração da RFB (seção 32); HTTPS no ar (seção 31); 7.2 (seção 30); DNS e VPS (seções 28-29);
-auditoria do dicionário CNAE (seções 26-27); bug do `confirmar_compra`/`anon` (seção 23); ver seções
-13-37.*
+## 38. História 7.4 — deploy automático funcionando de verdade (2026-09-02)
+
+**A pendência que mais doía no dia a dia está fechada.** Todo commit na `main` agora vai ao ar
+sozinho: GitHub roda os 80 testes, conecta na VPS por SSH e executa o `deploy.sh`.
+
+**Por que era prioritário:** o servidor ficou defasado **duas vezes** em três dias, e nas duas o
+código estava commitado e enviado — só não chegava ao ar. Pior, o agente foi bloqueado três vezes
+pelo classificador de auto-mode ao tentar atualizar manualmente (`deploy.sh`, `git pull --ff-only` e
+`git merge --ff-only`), e depois passou a conseguir sem explicação aparente. Depender de uma
+permissão que oscila é pior que depender de um processo previsível.
+
+**Chave dedicada ao CI.** Gerada `ed25519` separada da chave pessoal do operador, instalada em
+`~/.ssh/authorized_keys` do usuário `deploy`. Revogar o acesso do GitHub um dia é remover uma linha,
+sem afetar o acesso humano. Vale registrar o incidente: a primeira chave gerada apareceu inteira num
+print durante o cadastro do secret — foi **revogada e substituída antes de qualquer uso**, e o par
+antigo apagado. Chave privada de deploy dá acesso ao servidor como usuário com sudo sem senha; é o
+segredo mais sensível dessa configuração, mais que a chave do Resend.
+
+**Corrigido de passagem — o CI testava na versão errada do Node.** O workflow usava `node-version:
+'22'` enquanto a VPS roda **24.19.0**. Passar no CI e quebrar no deploy era questão de tempo,
+principalmente por causa do `better-sqlite3`, que tem binário nativo compilado por versão de Node e
+foi o único risco real do primeiro deploy manual (seção 30). Alinhado para 24.
+
+**Como foi confirmado que o deploy foi mesmo automático** — e isso importou, porque o servidor tinha
+sido atualizado à mão minutos antes e o commit chegar lá não provava nada:
+
+- **`git reflog` mostra `reset: moving to origin/main`** — assinatura exclusiva do `deploy.sh`. As
+  atualizações manuais aparecem como `merge: Fast-forward` nas linhas acima.
+- **O login SSH veio de `135.232.176.168`** (infraestrutura do GitHub/Azure), não do IP residencial
+  do operador, que aparece nas outras linhas do mesmo log.
+- **pm2 com 49s de uptime** e contador de reinícios incrementado: a aplicação foi recarregada pelo
+  script, não estava só com o arquivo novo em disco.
+
+Duas evidências independentes, porque uma só teria sido ambígua.
+
+**Proteção embutida que vale conhecer:** o job de deploy tem `needs: test`. Código que quebra a
+suíte **não chega ao servidor** — o deploy nem é tentado, e o site continua na versão boa.
+
+**Estado do Épico 7:** 7.1 ✅, 7.2 ✅, 7.3 ✅, 7.4 ✅. Restam a 7.5 (limpeza no cron) e a 7.6
+(quebrada pela migração da RFB).
+
+---
+
+*Última atualização: 2026-09-02 — **deploy automático funcionando** (história 7.4 ✅): todo commit na
+`main` roda os testes no CI e vai ao ar sozinho, fechando a defasagem do servidor que aconteceu duas
+vezes em três dias. Corrigido de passagem o Node do workflow, que testava em 22 com a produção em 24
+(seção 38). No mesmo dia: história 3.5 (filtro de contato-máscara) ativa em produção e verificada com
+busca real — um em cada cinco registros da base tinha contato de intermediário, e o filtro de e-mail
+da 3.4 nunca havia sido ligado (seção 37); fluxo completo do cliente validado (seção 36); migração
+para app.leadoor.com.br (seção 35); e-mail transacional no Resend (seção 34); história 2.7 de cartão
+(seção 33); 7.6 quebrada pela RFB (seção 32); HTTPS no ar (seção 31); 7.2 (seção 30); DNS e VPS
+(seções 28-29); auditoria do dicionário CNAE (seções 26-27); bug do `confirmar_compra`/`anon` (seção
+23); ver seções 13-38.*
